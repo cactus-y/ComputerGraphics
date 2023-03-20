@@ -1,28 +1,38 @@
 from OpenGL.GL import *
 from glfw.GLFW import *
 import glm
+import ctypes
 
 g_vertex_shader_src = '''
 #version 330 core
 
 layout (location = 0) in vec3 vin_pos; 
+layout (location = 1) in vec3 vin_color; 
+
+out vec4 vout_color;
+
+uniform float u_color;
 
 void main()
 {
-    gl_Position = vec4(vin_pos.x, vin_pos.y, vin_pos.z, 1.0);
+    
+    gl_Position = vec4(vin_pos.x + (0.5 - u_color) * 2, vin_pos.y, vin_pos.z, 1.0);
+    vout_color = vec4(vin_color.x - u_color, vin_color.y - u_color, vin_color.z - u_color, 1); // you can pass a vec3 and a scalar to vec4 constructor
+    
 }
 '''
+# "u_color" changes the color value of rgb and x-coordinate value of vertex
 
 g_fragment_shader_src = '''
 #version 330 core
 
-out vec4 FragColor;
+in vec4 vout_color;
 
-uniform vec3 u_color;
+out vec4 FragColor;
 
 void main()
 {
-    FragColor = vec4(u_color, 1.0);
+    FragColor = vout_color;
 }
 '''
 
@@ -84,7 +94,7 @@ def main():
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE) # for macOS
 
     # create a window and OpenGL context
-    window = glfwCreateWindow(800, 800, '4-color-changing-triangle', None, None)
+    window = glfwCreateWindow(800, 800, '2019032160', None, None)
     if not window:
         glfwTerminate()
         return
@@ -96,14 +106,14 @@ def main():
     # load shaders
     shader_program = load_shaders(g_vertex_shader_src, g_fragment_shader_src)
 
-    # get uniform locations
-    u_color_loc = glGetUniformLocation(shader_program, 'u_color') # find uniform's location
+    u_color_loc = glGetUniformLocation(shader_program, 'u_color')
 
     # prepare vertex data (in main memory)
     vertices = glm.array(glm.float32,
-        -1.0, -1.0, 0.0, # left vertex x, y, z coordinates
-         1.0, -1.0, 0.0, # right vertex x, y, z coordinates
-         0.0,  1.0, 0.0  # top vertex x, y, z coordinates
+        # position        # color
+        -1.0, -1.0, 0.0,  1.0, 0.0, 0.0, # left vertex
+         1.0, -1.0, 0.0,  0.0, 1.0, 0.0, # right vertex
+         0.0,  1.0, 0.0,  0.0, 0.0, 1.0, # top vertex
     )
 
     # create and activate VAO (vertex array object)
@@ -117,9 +127,13 @@ def main():
     # copy vertex data to VBO
     glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
 
-    # configure vertex attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * glm.sizeof(glm.float32), None)
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
     glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3 * glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -128,10 +142,9 @@ def main():
 
         glUseProgram(shader_program)
 
-        # update uniforms
         t = glfwGetTime()
-        blue = (glm.sin(t) + 1) * .5
-        glUniform3f(u_color_loc, 0, 0, blue)
+        a = (1 - glm.sin(t)) * .5
+        glUniform1f(u_color_loc, a) # this value will change the color and x-coordinate
 
         glBindVertexArray(VAO)
         glDrawArrays(GL_TRIANGLES, 0, 3)
