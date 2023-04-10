@@ -108,12 +108,9 @@ def framebuffer_size_callback(window, width, height):
 
     glViewport(0, 0, width, height)
 
-    ortho_height = 10.
-    ortho_width = ortho_height * width/height
-    # left, right, bottom, top, zNear, zFar
-    # g_P = glm.ortho(-ortho_width*.5,ortho_width*.5, -ortho_height*.5,ortho_height*.5, -10,10)
-    # fovy aspect near far
-    g_P = glm.perspective(np.degrees(np.arctan(.5*ortho_height/3.0)), ortho_width/ortho_height,3.0,10)
+    persp_height = 10.
+    persp_width = persp_height * width/height
+    g_P = glm.perspective(20, persp_width / persp_height, 1.0, 8.0)
 
 def prepare_vao_cube():
     # prepare vertex data (in main memory)
@@ -254,7 +251,7 @@ def main():
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE) # for macOS
 
     # create a window and OpenGL context
-    window = glfwCreateWindow(800, 800, '5-viewport-fit-preserve-objratio-ortho', None, None)
+    window = glfwCreateWindow(800, 800, '2019032160', None, None)
     if not window:
         glfwTerminate()
         return
