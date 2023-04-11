@@ -4,23 +4,32 @@ import glm
 import ctypes
 import numpy as np
 
-g_cam_ang = 0.
-g_cam_height = 0.
+### global variables ###
+
+# about triangle
 g_tri_x = 0.
 g_tri_y = 0.
 g_tri_z = 0.
 
+# about camera
+g_cam_eye = glm.vec3(0.0, 0.0, 0.3)
+g_target = glm.vec3(0.0, 0.0, 0.0)
+g_azimuth = 0.
+g_elevation = 0.
+
+# about vectors
+g_up_vector = glm.vec3(0.0, 1.0, 0.0)
+g_u_vec = glm.vec3(1.0, 0.0, 0.0)
+g_v_vec = glm.vec3(0.0, 1.0, 0.0)
+g_w_vec = glm.vec3(0.0, 0.0, 1.0)
+
+# about mouse
+g_mouse_right = False
+g_mouse_left = False
 g_last_x = 0.
 g_last_y = 0.
 
-g_elevation = 0.
-g_azimuth = 0.
-
-g_mouse_x = 0.
-g_mouse_y = 0.
-
-g_mouse_pressed = False
-
+########################
 
 g_vertex_shader_src = '''
 #version 330 core
@@ -99,21 +108,21 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
     return shader_program    # return the shader program
 
-
+# Keyboard Input
 def key_callback(window, key, scancode, action, mods):
-    global g_cam_ang, g_cam_height, g_tri_x, g_tri_y, g_tri_z
+    global g_azimuth, g_elevation, g_tri_x, g_tri_y, g_tri_z
     if key==GLFW_KEY_ESCAPE and action==GLFW_PRESS:
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     else:
         if action==GLFW_PRESS or action==GLFW_REPEAT:
             if key==GLFW_KEY_1:
-                g_cam_ang += np.radians(-10)
+                g_azimuth += np.radians(-10)
             elif key==GLFW_KEY_3:
-                g_cam_ang += np.radians(10)
+                g_azimuth += np.radians(10)
             elif key==GLFW_KEY_2:
-                g_cam_height += .1
+                g_elevation += .1
             elif key==GLFW_KEY_W:
-                g_cam_height += -.1
+                g_elevation += -.1
             # Q, A, E, D, Z, X for the triangle translation
             elif key==GLFW_KEY_Q:
                 g_tri_x += .1
@@ -127,38 +136,70 @@ def key_callback(window, key, scancode, action, mods):
                 g_tri_z += .1
             elif key==GLFW_KEY_X:
                 g_tri_z -= .1
-        
+
+# mouse button clicked
 def mouse_button_callback(window, button, action, mod):
-    global g_mouse_pressed, g_last_x, g_last_y
+    global g_mouse_left, g_mouse_right, g_last_x, g_last_y
     if button == GLFW_MOUSE_BUTTON_LEFT:
         if action == GLFW_PRESS:
-            g_mouse_pressed = True
+            g_mouse_left = True
             g_last_x, g_last_y = glfwGetCursorPos(window)
             print("Left mouse button is pressed.")
             print("Current position of x and y is: (%d, %d)"%(g_last_x, g_last_y))
         elif action == GLFW_RELEASE:
-            g_mouse_pressed = False
+            g_mouse_left = False
             print("Left mouse button is released")
+    elif button == GLFW_MOUSE_BUTTON_RIGHT:
+        if action == GLFW_PRESS:
+            g_mouse_right = True
+            g_last_x, g_last_y = glfwGetCursorPos(window)
+            print("Right mouse button is pressed.")
+            print("Current position of x and y is: (%d, %d)"%(g_last_x, g_last_y))
+        elif action == GLFW_RELEASE:
+            g_mouse_right = False
+            print("Right mouse button is released")
 
+# mouse cursor moving
 def cursor_callback(window, xpos, ypos):
-    global g_mouse_pressed, g_last_x, g_last_y, g_azimuth, g_elevation, g_cam_ang, g_cam_height
-    if g_mouse_pressed:
+    global g_mouse_left, g_mouse_right, g_last_x, g_last_y, g_azimuth, g_elevation, g_u_vec, g_v_vec, g_cam_eye, g_target
+    # Orbit
+    if g_mouse_left and not g_mouse_right:
         delta_x = xpos - g_last_x
         delta_y = ypos - g_last_y
         print("(delta_x, delta_y) is (%f, %f)"%(delta_x, delta_y))
 
-        g_azimuth = delta_x * 0.005
-        g_elevation = delta_y * 0.005
-        print("g_azimuth is %f"%g_azimuth)
-        print("g_elevation is %f"%g_elevation)
+        g_azimuth += delta_x * 0.005
+        g_elevation += delta_y * 0.005
 
-        g_cam_ang += g_azimuth
-        g_cam_height += g_elevation
+        # if g_elevation > 89.0:
+        #     g_elevation = 89.0
+        # elif g_elevation < -89.0:
+        #     g_elevation = -89.0
 
+        dist = glm.distance(g_cam_eye, g_target)
 
-    
-    
+        g_cam_eye.x = dist * np.cos(g_azimuth) * np.cos(g_elevation)
+        g_cam_eye.y = dist * np.sin(g_elevation)
+        g_cam_eye.z = dist * np.sin(g_azimuth) * np.cos(g_elevation)
 
+        g_last_x = xpos
+        g_last_y = ypos
+
+    # Pan
+    elif g_mouse_right and not g_mouse_left:
+        delta_x = (g_last_x -xpos) * 0.005
+        delta_y = (ypos - g_last_y) * 0.005
+
+        du = delta_x * g_u_vec
+        dv = delta_y * g_v_vec
+
+        g_cam_eye += du + dv
+        g_target += du + dv
+        
+        g_last_x = xpos
+        g_last_y = ypos
+
+# Draw a triangle
 def prepare_vao_triangle():
     # prepare vertex data (in main memory)
     vertices = glm.array(glm.float32,
@@ -189,42 +230,9 @@ def prepare_vao_triangle():
 
     return VAO
 
-def prepare_vao_frame():
-    # prepare vertex data (in main memory)
-    vertices = glm.array(glm.float32,
-        # position        # color
-         0.0, 0.0, 0.0,  1.0, 0.0, 0.0, # x-axis start
-         1.0, 0.0, 0.0,  1.0, 0.0, 0.0, # x-axis end 
-         0.0, 0.0, 0.0,  0.0, 1.0, 0.0, # y-axis start
-         0.0, 1.0, 0.0,  0.0, 1.0, 0.0, # y-axis end 
-         0.0, 0.0, 0.0,  0.0, 0.0, 1.0, # z-axis start
-         0.0, 0.0, 1.0,  0.0, 0.0, 1.0, # z-axis end 
-    )
-
-    # create and activate VAO (vertex array object)
-    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
-    glBindVertexArray(VAO)      # activate VAO
-
-    # create and activate VBO (vertex buffer object)
-    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
-    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
-
-    # copy vertex data to VBO
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
-
-    # configure vertex positions
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
-    glEnableVertexAttribArray(0)
-
-    # configure vertex colors
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
-    glEnableVertexAttribArray(1)
-
-    return VAO
-
+# Draw white grid and x,y,z axis
 def prepare_vao_grid():
     # prepare vertex data (in main memory)
-    
     arr = []
     for z in range(-20, 21):
         if z != 0:
@@ -234,8 +242,10 @@ def prepare_vao_grid():
             ])
         else:
             arr.extend([
-                -5.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                 5.0, 0.0, 0.0, 1.0, 0.0, 0.0
+                -5.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+                 0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+                 5.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0, 1.0, 0.0, 0.0
             ])
     
     for x in range(-20, 21):
@@ -246,14 +256,18 @@ def prepare_vao_grid():
             ])
         else:
             arr.extend([
-                0.0, 0.0, -5.0, 0.0, 0.0, 1.0,
+                0.0, 0.0, -5.0, 0.0, 1.0, 1.0,
+                0.0, 0.0,  0.0, 0.0, 1.0, 1.0,
+                0.0, 0.0,  0.0, 0.0, 0.0, 1.0,
                 0.0, 0.0,  5.0, 0.0, 0.0, 1.0
             ])
 
-    # arr.extend([
-    #     0.0, -5.0, 0.0, 0.0, 1.0, 0.0,
-    #     0.0,  5.0, 0.0, 0.0, 1.0, 0.0
-    # ])
+    arr.extend([
+        0.0, -5.0, 0.0, 0.0, 1.0, 0.0,
+        0.0,  0.0, 0.0, 0.0, 1.0, 0.0,
+        0.0,  5.0, 0.0, 1.0, 0.0, 1.0,
+        0.0,  0.0, 0.0, 1.0, 0.0, 1.0
+    ])
     
     vertices = glm.array(glm.float32, *arr)
 
@@ -279,9 +293,8 @@ def prepare_vao_grid():
 
     return VAO
 
-
- 
 def main():
+    global g_cam_eye, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation
     # initialize glfw
     if not glfwInit():
         return
@@ -310,7 +323,6 @@ def main():
     
     # prepare vaos
     vao_triangle = prepare_vao_triangle()
-    # vao_frame = prepare_vao_frame()
 
     vao_grid = prepare_vao_grid()
 
@@ -328,19 +340,17 @@ def main():
         # use orthogonal projection (we'll see details later)
         P = glm.ortho(-1,1,-1,1,-1,1)
 
-        # view matrix
-        # rotate camera position with g_cam_ang / move camera up & down with g_cam_height
-        cam_x = .1 * np.cos(g_cam_ang) * np.cos(g_cam_height)
-        cam_y = .1 * np.sin(g_cam_height)
-        cam_z = .1 * np.sin(g_cam_ang) * np.cos(g_cam_height)
-
-        if cam_y < 0:
-            V = glm.lookAt(glm.vec3(cam_x, cam_y, cam_z), glm.vec3(0,0,0), glm.vec3(0,-1,0))
+        if g_elevation < 0:
+            g_up_vector = glm.vec3(0.0, -1.0, 0.0)
+            V = glm.lookAt(g_cam_eye, g_target, g_up_vector)
         else:
-            V = glm.lookAt(glm.vec3(cam_x, cam_y, cam_z), glm.vec3(0,0,0), glm.vec3(0,1,0))
+            g_up_vector = glm.vec3(0.0, 1.0, 0.0)
+            V = glm.lookAt(g_cam_eye, g_target, g_up_vector)
         
-        # camera y-coordinate is weird... #
-
+        g_w_vec = glm.normalize(g_cam_eye - g_target)
+        g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
+        g_v_vec = glm.cross(g_w_vec, g_u_vec)
+        
         # current frame: P*V*I (now this is the world frame)
         I = glm.mat4()
         MVP = P*V*I
@@ -350,11 +360,9 @@ def main():
         # glBindVertexArray(vao_frame)
         # glDrawArrays(GL_LINES, 0, 6)
 
-
-
         # draw xz grid && xz axis
         glBindVertexArray(vao_grid)
-        glDrawArrays(GL_LINES, 0, 165)
+        glDrawArrays(GL_LINES, 0, 172)
 
         # animating
         t = glfwGetTime()
