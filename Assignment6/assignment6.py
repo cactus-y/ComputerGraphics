@@ -275,9 +275,9 @@ def main():
     # glViewport(100,100, 200,200)
 
     # initialize projection matrix
-    ortho_height = 10.
-    ortho_width = ortho_height * 800/800    # initial width/height
-    g_P = glm.ortho(-ortho_width*.5,ortho_width*.5, -ortho_height*.5,ortho_height*.5, -10,10)
+    persp_height = 10.
+    persp_width = persp_height * 800/800    # initial width/height
+    g_P = glm.perspective(20, persp_width / persp_height, 1.0, 8.0)
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
