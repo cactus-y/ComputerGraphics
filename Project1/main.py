@@ -103,6 +103,10 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
     return shader_program    # return the shader program
 
+def print_camera_target(cpos, tpos):
+    print("Position of camera: (%f, %f, %f)"%(cpos.x, cpos.y, cpos.z))
+    print("Position of target: (%f, %f, %f)"%(tpos.x, tpos.y, tpos.z))
+
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
     global g_azimuth, g_elevation
@@ -132,29 +136,52 @@ def mouse_button_callback(window, button, action, mod):
 
 # mouse cursor moving
 def cursor_callback(window, xpos, ypos):
-    global g_mouse_left, g_mouse_right, g_last_x, g_last_y, g_azimuth, g_elevation, g_u_vec, g_v_vec, g_cam_pos, g_target
+    global g_mouse_left, g_mouse_right, g_last_x, g_last_y, g_azimuth, g_elevation, g_u_vec, g_v_vec, g_cam_pos, g_target, g_dist
     # Orbit
     if g_mouse_left and not g_mouse_right:
+        print("Orbit call")
+        print_camera_target(g_cam_pos, g_target)
+
         delta_x = xpos - g_last_x
         delta_y = ypos - g_last_y
 
         g_azimuth += delta_x * 0.1
         g_elevation += delta_y * 0.1
 
+        g_cam_pos.x = g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation))
+        g_cam_pos.y = g_dist * np.sin(np.radians(g_elevation))
+        g_cam_pos.z = g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth))
+
+        print_camera_target(g_cam_pos, g_target)
+
         g_last_x = xpos
         g_last_y = ypos
 
     # Pan
     elif g_mouse_right and not g_mouse_left:
-        delta_x = (g_last_x -xpos) * 0.005
-        delta_y = (ypos - g_last_y) * 0.005
+        print("Pan call")
+        print_camera_target(g_cam_pos, g_target)
+
+        delta_x = (g_last_x -xpos) * 0.05
+        delta_y = (ypos - g_last_y) * 0.05
 
         du = delta_x * g_u_vec
         dv = delta_y * g_v_vec
 
         g_cam_pos += du + dv
         g_target += du + dv
+
+
+        # g_azimuth = np.degrees(np.arctan2(g_cam_pos.z - g_target.z, g_cam_pos.x - g_target.x))
+        # g_elevation = np.degrees(np.arctan2(g_cam_pos.y - g_target.y, np.sqrt((g_cam_pos.x - g_target.x)**2 +(g_cam_pos.z - g_target.z)**2)))
+
+        g_azimuth = np.degrees(np.arctan2(g_cam_pos.z, g_cam_pos.x))
+        g_elevation = np.degrees(np.arctan2(g_cam_pos.y, np.sqrt(g_cam_pos.x**2 + g_cam_pos.z**2)))
+
+        print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
         
+        print_camera_target(g_cam_pos, g_target)
+
         g_last_x = xpos
         g_last_y = ypos
 
@@ -342,6 +369,7 @@ def main():
         # projection matrix
         # use orthogonal projection (we'll see details later)
         P = glm.ortho(-1,1,-1,1,-1,1)
+        # P = glm.perspective(np.radians(45.0), 1, 0.3, 10)
 
         # g_up_vector = glm.vec3(0.0, 1.0, 0.0)
 
@@ -351,13 +379,10 @@ def main():
         else:
             g_up_vector = glm.vec3(0.0, 1.0, 0.0)
             
-        g_cam_pos.x = g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation))
-        g_cam_pos.y = g_dist * np.sin(np.radians(g_elevation))
-        g_cam_pos.z = g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth))
-
-        g_dist = glm.distance(g_cam_pos, g_target)
 
         V = glm.lookAt(g_cam_pos, g_target, g_up_vector)
+
+        # g_dist = glm.distance(g_cam_pos, g_target)
         
         g_w_vec = glm.normalize(g_cam_pos - g_target)
         g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
