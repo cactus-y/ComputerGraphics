@@ -1,28 +1,19 @@
+# This file is a test file for y-coordinate orbiting camera.
+
 from OpenGL.GL import *
 from glfw.GLFW import *
 import glm
 import ctypes
 import numpy as np
 
-### global variables ###
+### GLOBAL VARIABLES ###
 
-# about camera
+g_elevation = 45.0
+g_azimuth = 45.0
+g_up_vector = glm.vec3(0.0, 1.0, 0.0)
 g_cam_pos = glm.vec3(0.3, 0.3, 0.3)
 g_target = glm.vec3(0.0, 0.0, 0.0)
-g_azimuth = 45.0
-g_elevation = 45.0
 g_dist = glm.distance(g_cam_pos, g_target)
-
-# about vectors
-g_w_vec = glm.normalize(g_cam_pos - g_target)
-g_u_vec = glm.normalize(glm.cross(glm.vec3(0.0, 1.0, 0.0), g_w_vec))
-g_v_vec = glm.cross(g_w_vec, g_u_vec)
-
-# about mouse
-g_mouse_right = False
-g_mouse_left = False
-g_last_x = 0.
-g_last_y = 0.
 
 ########################
 
@@ -105,59 +96,16 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
-    global g_azimuth, g_elevation
+    global g_elevation
     if key==GLFW_KEY_ESCAPE and action==GLFW_PRESS:
         glfwSetWindowShouldClose(window, GLFW_TRUE);
-    # else:
-    #     if action==GLFW_PRESS or action==GLFW_REPEAT:
-    #         if key==GLFW_KEY_V:
-    #             g_azimuth += np.radians(-10)
-            
-
-# mouse button clicked
-def mouse_button_callback(window, button, action, mod):
-    global g_mouse_left, g_mouse_right, g_last_x, g_last_y
-    if button == GLFW_MOUSE_BUTTON_LEFT:
-        if action == GLFW_PRESS:
-            g_mouse_left = True
-            g_last_x, g_last_y = glfwGetCursorPos(window)
-        elif action == GLFW_RELEASE:
-            g_mouse_left = False
-    elif button == GLFW_MOUSE_BUTTON_RIGHT:
-        if action == GLFW_PRESS:
-            g_mouse_right = True
-            g_last_x, g_last_y = glfwGetCursorPos(window)
-        elif action == GLFW_RELEASE:
-            g_mouse_right = False
-
-# mouse cursor moving
-def cursor_callback(window, xpos, ypos):
-    global g_mouse_left, g_mouse_right, g_last_x, g_last_y, g_azimuth, g_elevation, g_u_vec, g_v_vec, g_cam_pos, g_target
-    # Orbit
-    if g_mouse_left and not g_mouse_right:
-        delta_x = xpos - g_last_x
-        delta_y = ypos - g_last_y
-
-        g_azimuth += delta_x * 0.1
-        g_elevation += delta_y * 0.1
-
-        g_last_x = xpos
-        g_last_y = ypos
-
-    # Pan
-    elif g_mouse_right and not g_mouse_left:
-        delta_x = (g_last_x -xpos) * 0.005
-        delta_y = (ypos - g_last_y) * 0.005
-
-        du = delta_x * g_u_vec
-        dv = delta_y * g_v_vec
-
-        g_cam_pos += du + dv
-        g_target += du + dv
-        
-        g_last_x = xpos
-        g_last_y = ypos
-
+    else:
+        if action==GLFW_PRESS or action==GLFW_REPEAT:
+            if key==GLFW_KEY_UP:
+                g_elevation += 10
+            elif key==GLFW_KEY_DOWN:
+                g_elevation -= 10
+               
 # Draw white grid and x,y,z axis
 def prepare_vao_grid():
     # prepare vertex data (in main memory)
@@ -297,8 +245,8 @@ def prepare_vao_cube():
     return VAO
 
 def main():
-    global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_dist
     # initialize glfw
+    global g_cam_pos, g_target, g_up_vector, g_dist, g_azimuth, g_elevation
     if not glfwInit():
         return
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3)   # OpenGL 3.3
@@ -315,8 +263,6 @@ def main():
 
     # register event callbacks
     glfwSetKeyCallback(window, key_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback)
-    glfwSetCursorPosCallback(window, cursor_callback)
 
     # load shaders
     shader_program = load_shaders(g_vertex_shader_src, g_fragment_shader_src)
@@ -343,29 +289,25 @@ def main():
         # use orthogonal projection (we'll see details later)
         P = glm.ortho(-1,1,-1,1,-1,1)
 
-        # g_up_vector = glm.vec3(0.0, 1.0, 0.0)
-
         if np.cos(np.radians(g_elevation)) < 0:
             g_up_vector = glm.vec3(0.0, -1.0, 0.0)
             # g_target.y = -g_target.y
         else:
             g_up_vector = glm.vec3(0.0, 1.0, 0.0)
-            
+        
         g_cam_pos.x = g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation))
         g_cam_pos.y = g_dist * np.sin(np.radians(g_elevation))
         g_cam_pos.z = g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth))
-
-        g_dist = glm.distance(g_cam_pos, g_target)
-
-        V = glm.lookAt(g_cam_pos, g_target, g_up_vector)
+            
+        g_V = glm.lookAt(g_cam_pos, g_target, g_up_vector)
         
-        g_w_vec = glm.normalize(g_cam_pos - g_target)
-        g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
-        g_v_vec = glm.cross(g_w_vec, g_u_vec)
+        # g_w_vec = glm.normalize(g_cam_eye - g_target)
+        # g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
+        # g_v_vec = glm.cross(g_w_vec, g_u_vec)
         
         # current frame: P*V*I (now this is the world frame)
         I = glm.mat4()
-        MVP = P*V*I
+        MVP = P*g_V*I
         glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
 
         # draw xz grid && xz axis
@@ -394,7 +336,7 @@ def main():
         # M = T @ R
 
         # current frame: P*V*M
-        MVP = P*V*M
+        MVP = P*g_V*M
 
         glBindVertexArray(vao_cube)
         glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
