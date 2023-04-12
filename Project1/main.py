@@ -170,14 +170,7 @@ def cursor_callback(window, xpos, ypos):
 
         g_cam_pos += du + dv
         g_target += du + dv
-
-
-        # g_azimuth = np.degrees(np.arctan2(g_cam_pos.z - g_target.z, g_cam_pos.x - g_target.x))
-        # g_elevation = np.degrees(np.arctan2(g_cam_pos.y - g_target.y, np.sqrt((g_cam_pos.x - g_target.x)**2 +(g_cam_pos.z - g_target.z)**2)))
-
-        g_azimuth = np.degrees(np.arctan2(g_cam_pos.z, g_cam_pos.x))
-        g_elevation = np.degrees(np.arctan2(g_cam_pos.y, np.sqrt(g_cam_pos.x**2 + g_cam_pos.z**2)))
-
+        
         print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
         
         print_camera_target(g_cam_pos, g_target)
