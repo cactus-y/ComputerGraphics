@@ -12,10 +12,11 @@ g_target = glm.vec3(0.0, 0.0, 0.0)
 g_azimuth = 45.0
 g_elevation = 45.0
 g_dist = glm.distance(g_cam_pos, g_target)
-g_persp = False
-g_ortho = True
+g_persp = True
+g_ortho = False
 
 # about vectors
+g_up_vector = glm.vec3(0.0, 1.0, 0.0)
 g_w_vec = glm.normalize(g_cam_pos - g_target)
 g_u_vec = glm.normalize(glm.cross(glm.vec3(0.0, 1.0, 0.0), g_w_vec))
 g_v_vec = glm.cross(g_w_vec, g_u_vec)
@@ -26,6 +27,9 @@ g_mouse_left = False
 g_last_x = 0.
 g_last_y = 0.
 g_zoom = 1.0
+
+# g_Pers = glm.perspective(np.radians(45), 1, .1, 100.0)
+# g_Orth = glm.ortho(-1, 1, -1, 1, -1, 1)
 
 ########################
 
@@ -150,15 +154,18 @@ def cursor_callback(window, xpos, ypos):
         print("Orbit call")
         print_camera_target(g_cam_pos, g_target)
 
-        delta_x = xpos - g_last_x
-        delta_y = ypos - g_last_y
+        if g_up_vector.y > 0:
+            delta_x = xpos - g_last_x
+            delta_y = ypos - g_last_y
+        else:
+            delta_x = g_last_x - xpos
+            delta_y = ypos - g_last_y
+        
 
-        g_azimuth += delta_x * 0.1
-        g_elevation += delta_y * 0.1
+        g_azimuth += delta_x * 0.5
+        g_elevation += delta_y * 0.5
 
-        g_cam_pos.x = g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation)) + g_target.x
-        g_cam_pos.y = g_dist * np.sin(np.radians(g_elevation)) + g_target.y
-        g_cam_pos.z = g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth)) + g_target.z
+        
 
         print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
 
@@ -169,36 +176,57 @@ def cursor_callback(window, xpos, ypos):
 
     # Pan
     elif g_mouse_right and not g_mouse_left:
-        print("Pan call")
-        print_camera_target(g_cam_pos, g_target)
+        if g_zoom > 0.001:
+            print("Pan call")
+            print_camera_target(g_cam_pos, g_target)
 
-        delta_x = (g_last_x -xpos) * 0.05
-        delta_y = (ypos - g_last_y) * 0.05
+            delta_x = (g_last_x -xpos) * 0.05
+            delta_y = (ypos - g_last_y) * 0.05
 
-        du = delta_x * g_u_vec
-        dv = delta_y * g_v_vec
+            du = delta_x * g_u_vec
+            dv = delta_y * g_v_vec
 
-        g_cam_pos += du + dv
-        g_target += du + dv
+            g_cam_pos += du + dv
+            g_target += du + dv
         
-        print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
+            print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
         
-        print_camera_target(g_cam_pos, g_target)
+            print_camera_target(g_cam_pos, g_target)
 
-        g_last_x = xpos
-        g_last_y = ypos
+            g_last_x = xpos
+            g_last_y = ypos
+        else:
+            print("You cannot pan. Please zoom out first.")
 
 def scroll_callback(window, xoffset, yoffset):
-    global g_zoom
+    global g_zoom, g_dist
     print('mouse wheel scroll: %f, %f'%(xoffset, yoffset))
     if xoffset == 0:
-        g_zoom += yoffset
+        if g_zoom - yoffset * 0.1 < 0.001:
+            g_zoom = 0.001
+        else:
+            g_zoom -= yoffset * 0.1
     else:
-        g_zoom += xoffset
+        if g_zoom - xoffset * 0.1 < 0.001:
+            g_zoom = 0.001
+        else:
+            g_zoom -= xoffset * 0.1
 
-def framebuffer_size_callback(window, width, height):
+# def framebuffer_size_callback(window, width, height):
+#     global g_Pers, g_Orth
 
-    glViewport(0, 0, width, height)
+#     glViewport(0, 0, width, height)
+
+#     new_height = 10.
+#     new_width = new_height * width/height
+
+#     if g_persp:
+#         g_Pers = glm.perspective(np.radians(45), new_width / new_height, .1, 100.0)
+#     else:
+#         g_Orth = glm.ortho(-1*new_width,1*new_width,-1*new_height,1*new_height,-1,1)
+
+    
+
 
 # Draw white grid and x,y,z axis
 def prepare_vao_grid():
@@ -207,35 +235,35 @@ def prepare_vao_grid():
     for z in range(-20, 21):
         if z != 0:
             arr.extend([
-                -5.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
-                 5.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
+                -2.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
+                 2.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
             ])
         else:
             arr.extend([
-                -5.0, 0.0, 0.0, 1.0, 1.0, 0.0,
+                -2.0, 0.0, 0.0, 1.0, 1.0, 0.0,
                  0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-                 5.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                 2.0, 0.0, 0.0, 1.0, 0.0, 0.0,
                  0.0, 0.0, 0.0, 1.0, 0.0, 0.0
             ])
     
     for x in range(-20, 21):
         if x != 0:
             arr.extend([
-                x / 10.0, 0.0, -5.0, 1.0, 1.0, 1.0,
-                x / 10.0, 0.0,  5.0, 1.0, 1.0, 1.0
+                x / 10.0, 0.0, -2.0, 1.0, 1.0, 1.0,
+                x / 10.0, 0.0,  2.0, 1.0, 1.0, 1.0
             ])
         else:
             arr.extend([
-                0.0, 0.0, -5.0, 0.0, 1.0, 1.0,
+                0.0, 0.0, -2.0, 0.0, 1.0, 1.0,
                 0.0, 0.0,  0.0, 0.0, 1.0, 1.0,
                 0.0, 0.0,  0.0, 0.0, 0.0, 1.0,
-                0.0, 0.0,  5.0, 0.0, 0.0, 1.0
+                0.0, 0.0,  2.0, 0.0, 0.0, 1.0
             ])
 
     arr.extend([
-        0.0, -5.0, 0.0, 0.0, 1.0, 0.0,
+        0.0, -2.0, 0.0, 0.0, 1.0, 0.0,
         0.0,  0.0, 0.0, 0.0, 1.0, 0.0,
-        0.0,  5.0, 0.0, 1.0, 0.0, 1.0,
+        0.0,  2.0, 0.0, 1.0, 0.0, 1.0,
         0.0,  0.0, 0.0, 1.0, 0.0, 1.0
     ])
     
@@ -339,7 +367,7 @@ def prepare_vao_cube():
     return VAO
 
 def main():
-    global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_dist
+    global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_dist, g_up_vector
     # initialize glfw
     if not glfwInit():
         return
@@ -360,7 +388,10 @@ def main():
     glfwSetMouseButtonCallback(window, mouse_button_callback)
     glfwSetCursorPosCallback(window, cursor_callback)
     glfwSetScrollCallback(window, scroll_callback)
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback)
+    # glfwSetFramebufferSizeCallback(window, framebuffer_size_callback)
+
+    width, height = glfwGetFramebufferSize(window)
+    glViewport(0, 0, width, height)
 
 
     # load shaders
@@ -386,8 +417,11 @@ def main():
 
         # projection matrix
         # use orthogonal projection (we'll see details later)
-        P = glm.ortho(-1,1,-1,1,-1,1)
-        # P = glm.perspective(np.radians(45.0), 1, 0.3, 10)
+
+        if g_persp:
+            P = glm.perspective(np.radians(45), 1, .1, 100.0)
+        else:
+            P = glm.ortho(-1, 1, -1, 1, -1, 1)
 
         # g_up_vector = glm.vec3(0.0, 1.0, 0.0)
 
@@ -399,6 +433,10 @@ def main():
         g_w_vec = glm.normalize(g_cam_pos - g_target)
         g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
         g_v_vec = glm.cross(g_w_vec, g_u_vec)
+
+        g_cam_pos.x = g_zoom * g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation)) + g_target.x
+        g_cam_pos.y = g_zoom * g_dist * np.sin(np.radians(g_elevation)) + g_target.y
+        g_cam_pos.z = g_zoom * g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth)) + g_target.z
 
         V = glm.lookAt(g_cam_pos, g_target, g_v_vec)
 
@@ -413,34 +451,10 @@ def main():
 
         # draw xz grid && xz axis
         glBindVertexArray(vao_grid)
-        glDrawArrays(GL_LINES, 0, 172)
-
-        # animating
-        t = glfwGetTime()
-
-        # rotation
-        th = np.radians(t*90)
-        R = glm.rotate(th, glm.vec3(0,0,1))
-
-        # tranlation
-        T = glm.translate(glm.vec3(np.sin(t), .2, 0.))
-
-        # scaling
-        S = glm.scale(glm.vec3(np.sin(t), np.sin(t), np.sin(t)))
-
-        u = glm.translate(glm.vec3(0, 0, 0))
-
-        M = u
-        # M = T
-        # M = S
-        # M = R @ T
-        # M = T @ R
-
-        # current frame: P*V*M
-        MVP = P*V*M
+        glDrawArrays(GL_LINES, 0, 412)
 
         glBindVertexArray(vao_cube)
-        glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+        # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
         glDrawArrays(GL_TRIANGLES, 0, 36)
 
         # swap front and back buffers
