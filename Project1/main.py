@@ -23,6 +23,7 @@ g_mouse_right = False
 g_mouse_left = False
 g_last_x = 0.
 g_last_y = 0.
+g_zoom = 1.0
 
 ########################
 
@@ -136,7 +137,7 @@ def mouse_button_callback(window, button, action, mod):
 
 # mouse cursor moving
 def cursor_callback(window, xpos, ypos):
-    global g_mouse_left, g_mouse_right, g_last_x, g_last_y, g_azimuth, g_elevation, g_u_vec, g_v_vec, g_cam_pos, g_target, g_dist
+    global g_last_x, g_last_y, g_azimuth, g_elevation, g_cam_pos, g_target, g_dist
     # Orbit
     if g_mouse_left and not g_mouse_right:
         print("Orbit call")
@@ -148,9 +149,11 @@ def cursor_callback(window, xpos, ypos):
         g_azimuth += delta_x * 0.1
         g_elevation += delta_y * 0.1
 
-        g_cam_pos.x = g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation))
-        g_cam_pos.y = g_dist * np.sin(np.radians(g_elevation))
-        g_cam_pos.z = g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth))
+        g_cam_pos.x = g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation)) + g_target.x
+        g_cam_pos.y = g_dist * np.sin(np.radians(g_elevation)) + g_target.y
+        g_cam_pos.z = g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth)) + g_target.z
+
+        print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
 
         print_camera_target(g_cam_pos, g_target)
 
@@ -177,6 +180,10 @@ def cursor_callback(window, xpos, ypos):
 
         g_last_x = xpos
         g_last_y = ypos
+
+def scroll_callback(window, xoffset, yoffset):
+    print('mouse wheel scroll: %f, %f'%(xoffset, yoffset))
+
 
 # Draw white grid and x,y,z axis
 def prepare_vao_grid():
@@ -337,6 +344,8 @@ def main():
     glfwSetKeyCallback(window, key_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback)
     glfwSetCursorPosCallback(window, cursor_callback)
+    glfwSetScrollCallback(window, scroll_callback)
+
 
     # load shaders
     shader_program = load_shaders(g_vertex_shader_src, g_fragment_shader_src)
@@ -368,18 +377,18 @@ def main():
 
         if np.cos(np.radians(g_elevation)) < 0:
             g_up_vector = glm.vec3(0.0, -1.0, 0.0)
-            # g_target.y = -g_target.y
         else:
             g_up_vector = glm.vec3(0.0, 1.0, 0.0)
             
-
-        V = glm.lookAt(g_cam_pos, g_target, g_up_vector)
-
-        # g_dist = glm.distance(g_cam_pos, g_target)
-        
         g_w_vec = glm.normalize(g_cam_pos - g_target)
         g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
         g_v_vec = glm.cross(g_w_vec, g_u_vec)
+
+        V = glm.lookAt(g_cam_pos, g_target, g_v_vec)
+
+        # g_dist = glm.distance(g_cam_pos, g_target)
+        
+        
         
         # current frame: P*V*I (now this is the world frame)
         I = glm.mat4()
