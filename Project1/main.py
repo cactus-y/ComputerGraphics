@@ -12,6 +12,8 @@ g_target = glm.vec3(0.0, 0.0, 0.0)
 g_azimuth = 45.0
 g_elevation = 45.0
 g_dist = glm.distance(g_cam_pos, g_target)
+g_persp = False
+g_ortho = True
 
 # about vectors
 g_w_vec = glm.normalize(g_cam_pos - g_target)
@@ -110,13 +112,18 @@ def print_camera_target(cpos, tpos):
 
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
-    global g_azimuth, g_elevation
+    global g_persp, g_ortho
     if key==GLFW_KEY_ESCAPE and action==GLFW_PRESS:
         glfwSetWindowShouldClose(window, GLFW_TRUE);
-    # else:
-    #     if action==GLFW_PRESS or action==GLFW_REPEAT:
-    #         if key==GLFW_KEY_V:
-    #             g_azimuth += np.radians(-10)
+    else:
+        if action==GLFW_PRESS or action==GLFW_REPEAT:
+            if key==GLFW_KEY_V:
+                if g_persp:
+                    g_persp = False
+                    g_ortho = True
+                else:
+                    g_persp = True
+                    g_ortho = False
             
 
 # mouse button clicked
@@ -182,8 +189,16 @@ def cursor_callback(window, xpos, ypos):
         g_last_y = ypos
 
 def scroll_callback(window, xoffset, yoffset):
+    global g_zoom
     print('mouse wheel scroll: %f, %f'%(xoffset, yoffset))
+    if xoffset == 0:
+        g_zoom += yoffset
+    else:
+        g_zoom += xoffset
 
+def framebuffer_size_callback(window, width, height):
+
+    glViewport(0, 0, width, height)
 
 # Draw white grid and x,y,z axis
 def prepare_vao_grid():
@@ -345,6 +360,7 @@ def main():
     glfwSetMouseButtonCallback(window, mouse_button_callback)
     glfwSetCursorPosCallback(window, cursor_callback)
     glfwSetScrollCallback(window, scroll_callback)
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback)
 
 
     # load shaders
