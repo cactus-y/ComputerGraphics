@@ -110,10 +110,6 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
     return shader_program    # return the shader program
 
-def print_camera_target(cpos, tpos):
-    print("Position of camera: (%f, %f, %f)"%(cpos.x, cpos.y, cpos.z))
-    print("Position of target: (%f, %f, %f)"%(tpos.x, tpos.y, tpos.z))
-
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
     global g_persp, g_ortho
@@ -128,8 +124,7 @@ def key_callback(window, key, scancode, action, mods):
                 else:
                     g_persp = True
                     g_ortho = False
-            
-
+        
 # mouse button clicked
 def mouse_button_callback(window, button, action, mod):
     global g_mouse_left, g_mouse_right, g_last_x, g_last_y
@@ -148,28 +143,18 @@ def mouse_button_callback(window, button, action, mod):
 
 # mouse cursor moving
 def cursor_callback(window, xpos, ypos):
-    global g_last_x, g_last_y, g_azimuth, g_elevation, g_cam_pos, g_target, g_dist
+    global g_last_x, g_last_y, g_azimuth, g_elevation, g_cam_pos, g_target
     # Orbit
     if g_mouse_left and not g_mouse_right:
-        print("Orbit call")
-        print_camera_target(g_cam_pos, g_target)
-
         if g_up_vector.y > 0:
             delta_x = xpos - g_last_x
             delta_y = ypos - g_last_y
         else:
             delta_x = g_last_x - xpos
             delta_y = ypos - g_last_y
-        
 
         g_azimuth += delta_x * 0.5
-        g_elevation += delta_y * 0.5
-
-        
-
-        print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
-
-        print_camera_target(g_cam_pos, g_target)
+        g_elevation += delta_y * 0.5      
 
         g_last_x = xpos
         g_last_y = ypos
@@ -177,9 +162,6 @@ def cursor_callback(window, xpos, ypos):
     # Pan
     elif g_mouse_right and not g_mouse_left:
         if g_zoom > 0.001:
-            print("Pan call")
-            print_camera_target(g_cam_pos, g_target)
-
             delta_x = (g_last_x -xpos) * 0.05
             delta_y = (ypos - g_last_y) * 0.05
 
@@ -188,19 +170,15 @@ def cursor_callback(window, xpos, ypos):
 
             g_cam_pos += du + dv
             g_target += du + dv
-        
-            print("azimuth: %f, elevation: %f"%(g_azimuth,g_elevation))
-        
-            print_camera_target(g_cam_pos, g_target)
 
             g_last_x = xpos
             g_last_y = ypos
         else:
             print("You cannot pan. Please zoom out first.")
 
+# mouse wheel scroll
 def scroll_callback(window, xoffset, yoffset):
-    global g_zoom, g_dist
-    print('mouse wheel scroll: %f, %f'%(xoffset, yoffset))
+    global g_zoom
     if xoffset == 0:
         if g_zoom - yoffset * 0.1 < 0.001:
             g_zoom = 0.001
@@ -211,6 +189,7 @@ def scroll_callback(window, xoffset, yoffset):
             g_zoom = 0.001
         else:
             g_zoom -= xoffset * 0.1
+
 
 # def framebuffer_size_callback(window, width, height):
 #     global g_Pers, g_Orth
@@ -225,50 +204,36 @@ def scroll_callback(window, xoffset, yoffset):
 #     else:
 #         g_Orth = glm.ortho(-1*new_width,1*new_width,-1*new_height,1*new_height,-1,1)
 
-    
 
-
-# Draw white grid and x,y,z axis
+# Draw x-z grid lines
 def prepare_vao_grid():
     # prepare vertex data (in main memory)
     arr = []
-    for z in range(-20, 21):
+    for z in range(-30, 31):
         if z != 0:
             arr.extend([
-                -2.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
-                 2.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
+                -3.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
+                 3.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
             ])
         else:
             arr.extend([
-                -2.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-                 0.0, 0.0, 0.0, 1.0, 1.0, 0.0,
-                 2.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                 0.0, 0.0, 0.0, 1.0, 0.0, 0.0
+                -3.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                 3.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             ])
     
-    for x in range(-20, 21):
+    for x in range(-30, 31):
         if x != 0:
             arr.extend([
-                x / 10.0, 0.0, -2.0, 1.0, 1.0, 1.0,
-                x / 10.0, 0.0,  2.0, 1.0, 1.0, 1.0
+                x / 10.0, 0.0, -3.0, 1.0, 1.0, 1.0,
+                x / 10.0, 0.0,  3.0, 1.0, 1.0, 1.0
             ])
         else:
             arr.extend([
-                0.0, 0.0, -2.0, 0.0, 1.0, 1.0,
-                0.0, 0.0,  0.0, 0.0, 1.0, 1.0,
-                0.0, 0.0,  0.0, 0.0, 0.0, 1.0,
-                0.0, 0.0,  2.0, 0.0, 0.0, 1.0
+                0.0, 0.0, -3.0, 0.0, 1.0, 0.0,
+                0.0, 0.0,  3.0, 0.0, 1.0, 0.0,
             ])
-
-    arr.extend([
-        0.0, -2.0, 0.0, 0.0, 1.0, 0.0,
-        0.0,  0.0, 0.0, 0.0, 1.0, 0.0,
-        0.0,  2.0, 0.0, 1.0, 0.0, 1.0,
-        0.0,  0.0, 0.0, 1.0, 0.0, 1.0
-    ])
     
     vertices = glm.array(glm.float32, *arr)
-
 
     # create and activate VAO (vertex array object)
     VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
@@ -291,6 +256,7 @@ def prepare_vao_grid():
 
     return VAO
 
+# Draw a cube
 def prepare_vao_cube():
     # prepare vertex data (in main memory)
     # 36 vertices for 12 triangles
@@ -367,7 +333,7 @@ def prepare_vao_cube():
     return VAO
 
 def main():
-    global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_dist, g_up_vector
+    global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_up_vector
     # initialize glfw
     if not glfwInit():
         return
@@ -393,7 +359,6 @@ def main():
     width, height = glfwGetFramebufferSize(window)
     glViewport(0, 0, width, height)
 
-
     # load shaders
     shader_program = load_shaders(g_vertex_shader_src, g_fragment_shader_src)
 
@@ -402,7 +367,6 @@ def main():
     
     # prepare vaos
     vao_grid = prepare_vao_grid()
-
     vao_cube = prepare_vao_cube()
 
     # loop until the user closes the window
@@ -416,34 +380,29 @@ def main():
         glUseProgram(shader_program)
 
         # projection matrix
-        # use orthogonal projection (we'll see details later)
-
         if g_persp:
             P = glm.perspective(np.radians(45), 1, .1, 100.0)
         else:
             P = glm.ortho(-1, 1, -1, 1, -1, 1)
 
-        # g_up_vector = glm.vec3(0.0, 1.0, 0.0)
-
+        # up-vector
         if np.cos(np.radians(g_elevation)) < 0:
             g_up_vector = glm.vec3(0.0, -1.0, 0.0)
         else:
             g_up_vector = glm.vec3(0.0, 1.0, 0.0)
             
+        # u, v, w vectors
         g_w_vec = glm.normalize(g_cam_pos - g_target)
         g_u_vec = glm.normalize(glm.cross(g_up_vector, g_w_vec))
         g_v_vec = glm.cross(g_w_vec, g_u_vec)
 
-        g_cam_pos.x = g_zoom * g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation)) + g_target.x
-        g_cam_pos.y = g_zoom * g_dist * np.sin(np.radians(g_elevation)) + g_target.y
-        g_cam_pos.z = g_zoom * g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth)) + g_target.z
+        # set camera's position
+        g_cam_pos.x = g_target.x + g_zoom * g_dist * np.cos(np.radians(g_azimuth)) * np.cos(np.radians(g_elevation))
+        g_cam_pos.y = g_target.y + g_zoom * g_dist * np.sin(np.radians(g_elevation))
+        g_cam_pos.z = g_target.z + g_zoom * g_dist * np.cos(np.radians(g_elevation)) * np.sin(np.radians(g_azimuth))
 
         V = glm.lookAt(g_cam_pos, g_target, g_v_vec)
 
-        # g_dist = glm.distance(g_cam_pos, g_target)
-        
-        
-        
         # current frame: P*V*I (now this is the world frame)
         I = glm.mat4()
         MVP = P*V*I
@@ -451,7 +410,7 @@ def main():
 
         # draw xz grid && xz axis
         glBindVertexArray(vao_grid)
-        glDrawArrays(GL_LINES, 0, 412)
+        glDrawArrays(GL_LINES, 0, 244)
 
         glBindVertexArray(vao_cube)
         # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
