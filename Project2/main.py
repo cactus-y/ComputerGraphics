@@ -32,9 +32,8 @@ g_zoom = 1.0
 # g_Orth = glm.ortho(-1, 1, -1, 1, -1, 1)
 
 # about obj file io
-g_v_list = []
-g_vn_list = []
-g_f_list = []
+g_obj_list = []
+g_obj_VAO_list = []
 
 ########################
 
@@ -74,10 +73,69 @@ void main()
 
 class ObjData:
     def __init__(self):
-        self.vertices = []
-        self.normals = []
-        self.v_index = []
-        self.n_index = []
+        self.vertex_position = []
+        self.normal_vector = []
+        self.vertex_index = []
+        self.normal_index = []
+
+    def prepare(self, filestr):
+        # prepare for VAO data
+        for itr in filestr:
+            if(itr == ''): break
+            line = itr.strip()
+            v = line.split(' ')
+
+            # check a line of data
+            if v[0] == 'v':
+                # vertex position list
+                v.remove('v')
+                v = list(map(float, v))
+                v.extend([1.0, 0.0, 0.0]) # color as red
+                self.vertex_position.append(v)
+
+            elif v[0] == 'vn':
+                # vertex normal list
+                v.remove('vn')
+                v = list(map(float, v))
+                self.normal_vector.append(v)
+
+            elif v[0] == 'f':
+                v.remove('f')
+                polygon = len(v)
+                temp_vertex = []
+                temp_normal = []
+                # put vertex index and vertex normal index into temporary lists
+                for str in v:
+                    temp = str.split("/")
+                    if len(temp) == 2:
+                        temp_vertex.append(int(temp[0]))
+                    else:
+                        temp_vertex.append(int(temp[0]))
+                        temp_normal.append(int(temp[2]))
+        
+                # print(temp_vertex)
+                # print(temp_normal)
+
+                # change all polygons in face into triangles
+                if polygon > 3:
+                    j = 0
+                    while j < polygon - 1:
+                        vit = []
+                        nit = []
+                        # first triangle
+                        if j == 0:
+                            vit = [temp_vertex[j], temp_vertex[j + 1], temp_vertex[j + 2]]
+                            nit = [temp_normal[j], temp_normal[j + 1], temp_normal[j + 2]]
+                            j += 1
+                        else:
+                            vit = [temp_vertex[j], temp_vertex[j + 1], temp_vertex[0]]
+                            nit = [temp_normal[j], temp_normal[j + 1], temp_normal[0]]
+                        self.vertex_index.append(vit)
+                        self.normal_index.append(nit)
+                        j += 1   
+                else:
+                    self.vertex_index.append(temp_vertex)
+                    self.normal_index.append(temp_normal)
 
 def load_shaders(vertex_shader_source, fragment_shader_source):
     # build and compile our shader program
@@ -204,33 +262,17 @@ def scroll_callback(window, xoffset, yoffset):
 
 # drag file callback
 def drop_callback(window, path):
-    global g_v_list, g_vn_list, g_f_list
+    global g_obj_list, g_obj_VAO_list
     print(path[0])
     f = open(path[0], "rt")
-    vlist = []
-    vnlist = []
-    flist = []
-    tlist = []
-
-    while True:
-    
-        check = f.readline()
-        if(check == ''): break
-        line = check.strip()
-
-        v = line.split(' ')
-
-        if v[0] == 'v':
-            v.remove('v')
-            vlist.append(list(map(float, v)))
-        elif v[0] == 'f':
-            v.remove('f')
-            flist.append(list(map(int, v)))
-        elif v[0] == 'vn':
-            v.remove('vn')
-            vnlist.append(list(map(float, v)))
-
+    filestr = f.readlines()
     f.close()
+
+    # pass this whole file data to Obj instance
+    obj = ObjData()
+    obj.prepare(filestr)
+    g_obj_list.append(obj)
+    g_obj_VAO_list.append(prepare_vao_obj(obj))
 
 # def framebuffer_size_callback(window, width, height):
 #     global g_Pers, g_Orth
@@ -374,20 +416,20 @@ def prepare_vao_cube():
     return VAO
 
 # draw an object by using obj file
-def prepare_vao_obj():
+def prepare_vao_obj(obj):
     varr = []
     farr = []
-    for i in range(0, len(g_v_list)):
-        varr.extend(g_v_list[i], 1.0, 1.0, 1.0)
+    for i in range(0, len(obj.vertex_position)):
+        varr.extend(obj.vertex_position[i])
     
-    for i in range(0, len(g_f_list)):
-        farr.extend(g_f_list[i])
+    for i in range(0, len(obj.vertex_index)):
+        farr.extend(obj.vertex_index[i])
 
 
 
     vertices = glm.array(glm.float32, *varr)
 
-    indicies = glm.array(glm.uint32, *farr)
+    indices = glm.array(glm.uint32, *farr)
 
     # create and activate VAO (vertex array object)
     VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
@@ -494,6 +536,11 @@ def main():
         # draw xz grid && xz axis
         glBindVertexArray(vao_grid)
         glDrawArrays(GL_LINES, 0, 244)
+
+        if len(g_obj_VAO_list) != 0:
+            glBindVertexArray(g_obj_VAO_list[-1])
+            glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+            glDrawArrays(GL_TRIANGLES, 0, len(g_obj_list[-1].vertex_index))
 
         # glBindVertexArray(vao_cube)
         # # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
