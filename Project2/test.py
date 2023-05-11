@@ -15,15 +15,16 @@ while True:
     if v[0] == 'v':
         v.remove('v')
         # v.remove('\n')
-        vlist.append(v)
+        
+        vlist.append(list(map(float, v)))
     elif v[0] == 'f':
         v.remove('f')
         # v.remove('\n')
-        flist.append(v)
+        flist.append(list(map(int, v)))
     elif v[0] == 'vn':
         v.remove('vn')
         # v.remove('\n')
-        vnlist.append(v)
+        vnlist.append(flist(map(float, v)))
 
 print("vertex list")
 print(vlist)
