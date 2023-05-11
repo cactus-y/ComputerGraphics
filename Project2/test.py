@@ -1,4 +1,4 @@
-f = open("test.obj", "rt")
+f = open("cylinder-tri.obj", "rt")
 vlist = []
 vnlist = []
 flist = []
@@ -14,25 +14,30 @@ while True:
 
     if v[0] == 'v':
         v.remove('v')
-        # v.remove('\n')
-        
-        vlist.append(list(map(float, v)))
+        vlist.append(v)
     elif v[0] == 'f':
         v.remove('f')
-        # v.remove('\n')
-        flist.append(list(map(int, v)))
+        flist.append(v)
     elif v[0] == 'vn':
         v.remove('vn')
-        # v.remove('\n')
-        vnlist.append(flist(map(float, v)))
+        vnlist.append(v)
 
 print("vertex list")
 print(vlist)
 
-print("face list")
-print(flist)
 
 print("vertex normal list")
 print(vnlist)
+
+print("face list")
+print(flist)
+
+print("vertex list count:")
+print(len(vlist))
+print("vertex normal list count:")
+print(len(vnlist))
+print("face list count:")
+print(len(flist))
+
 
 f.close()

@@ -7,7 +7,7 @@ import numpy as np
 ### global variables ###
 
 # about camera
-g_cam_pos = glm.vec3(0.3, 0.3, 0.3)
+g_cam_pos = glm.vec3(1.0, 1.0, 1.0)
 g_target = glm.vec3(0.0, 0.0, 0.0)
 g_azimuth = 45.0
 g_elevation = 45.0
@@ -30,6 +30,11 @@ g_zoom = 1.0
 
 # g_Pers = glm.perspective(np.radians(45), 1, .1, 100.0)
 # g_Orth = glm.ortho(-1, 1, -1, 1, -1, 1)
+
+# about obj file io
+g_v_list = []
+g_vn_list = []
+g_f_list = []
 
 ########################
 
@@ -66,6 +71,13 @@ void main()
     FragColor = vout_color;
 }
 '''
+
+class ObjData:
+    def __init__(self):
+        self.vertices = []
+        self.normals = []
+        self.v_index = []
+        self.n_index = []
 
 def load_shaders(vertex_shader_source, fragment_shader_source):
     # build and compile our shader program
@@ -190,6 +202,35 @@ def scroll_callback(window, xoffset, yoffset):
         else:
             g_zoom -= xoffset * 0.1
 
+# drag file callback
+def drop_callback(window, path):
+    global g_v_list, g_vn_list, g_f_list
+    print(path[0])
+    f = open(path[0], "rt")
+    vlist = []
+    vnlist = []
+    flist = []
+    tlist = []
+
+    while True:
+    
+        check = f.readline()
+        if(check == ''): break
+        line = check.strip()
+
+        v = line.split(' ')
+
+        if v[0] == 'v':
+            v.remove('v')
+            vlist.append(list(map(float, v)))
+        elif v[0] == 'f':
+            v.remove('f')
+            flist.append(list(map(int, v)))
+        elif v[0] == 'vn':
+            v.remove('vn')
+            vnlist.append(list(map(float, v)))
+
+    f.close()
 
 # def framebuffer_size_callback(window, width, height):
 #     global g_Pers, g_Orth
@@ -332,6 +373,47 @@ def prepare_vao_cube():
 
     return VAO
 
+# draw an object by using obj file
+def prepare_vao_obj():
+    varr = []
+    farr = []
+    for i in range(0, len(g_v_list)):
+        varr.extend(g_v_list[i], 1.0, 1.0, 1.0)
+    
+    for i in range(0, len(g_f_list)):
+        farr.extend(g_f_list[i])
+
+
+
+    vertices = glm.array(glm.float32, *varr)
+
+    indicies = glm.array(glm.uint32, *farr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    EBO = glGenBuffers(1)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices.ptr, GL_STATIC_DRAW)
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
 def main():
     global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_up_vector
     # initialize glfw
@@ -354,6 +436,7 @@ def main():
     glfwSetMouseButtonCallback(window, mouse_button_callback)
     glfwSetCursorPosCallback(window, cursor_callback)
     glfwSetScrollCallback(window, scroll_callback)
+    glfwSetDropCallback(window, drop_callback)
     # glfwSetFramebufferSizeCallback(window, framebuffer_size_callback)
 
     width, height = glfwGetFramebufferSize(window)
@@ -367,7 +450,7 @@ def main():
     
     # prepare vaos
     vao_grid = prepare_vao_grid()
-    vao_cube = prepare_vao_cube()
+    # vao_cube = prepare_vao_cube()
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -412,9 +495,9 @@ def main():
         glBindVertexArray(vao_grid)
         glDrawArrays(GL_LINES, 0, 244)
 
-        glBindVertexArray(vao_cube)
-        # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
-        glDrawArrays(GL_TRIANGLES, 0, 36)
+        # glBindVertexArray(vao_cube)
+        # # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+        # glDrawArrays(GL_TRIANGLES, 0, 36)
 
         # swap front and back buffers
         glfwSwapBuffers(window)
