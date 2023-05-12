@@ -12,8 +12,12 @@ g_target = glm.vec3(0.0, 0.0, 0.0)
 g_azimuth = 45.0
 g_elevation = 45.0
 g_dist = glm.distance(g_cam_pos, g_target)
+
+# mode
 g_persp = True
 g_ortho = False
+g_single_mesh = True
+g_hierarchial = False
 
 # about vectors
 g_up_vector = glm.vec3(0.0, 1.0, 0.0)
@@ -77,20 +81,34 @@ class ObjData:
         self.normal_vector = []
         self.vertex_index = []
         self.normal_index = []
+        self.filename = '' # may be it should be changed as relative path
+        self.num_face = 0
+        self.three_v = 0
+        self.four_v = 0
+        self.more_four_v = 0
 
     def prepare(self, filestr):
+        k = 1
         # prepare for VAO data
         for itr in filestr:
+            k += 1
             if(itr == ''): break
             line = itr.strip()
             v = line.split(' ')
+            
+            remove_blank = {' ', ''}
+            v = [x for x in v if x not in remove_blank]
+            # print(v)
 
             # check a line of data
+            if not v:
+                continue
             if v[0] == 'v':
                 # vertex position list
                 v.remove('v')
                 v = list(map(float, v))
-                v.extend([1.0, 0.0, 0.0]) # color as red
+                # v = list(map(lambda x : x / 10.0, v))
+                v.extend([1.0, 1.0, 1.0]) # color as red
                 self.vertex_position.append(v)
 
             elif v[0] == 'vn':
@@ -106,12 +124,17 @@ class ObjData:
                 temp_normal = []
                 # put vertex index and vertex normal index into temporary lists
                 for str in v:
-                    temp = str.split("/")
-                    if len(temp) == 2:
-                        temp_vertex.append(int(temp[0]))
+                    if '/' in str:
+                        temp = str.split("/")
+                        if len(temp) == 2:
+                            temp_vertex.append(int(temp[0]) - 1)
+                        else:
+                            temp_vertex.append(int(temp[0]) - 1)
+                            temp_normal.append(int(temp[2]) - 1)
                     else:
-                        temp_vertex.append(int(temp[0]))
-                        temp_normal.append(int(temp[2]))
+                        # has only vertex index
+                        temp_vertex.append(int(str) - 1)
+                    
         
                 # print(temp_vertex)
                 # print(temp_normal)
@@ -125,17 +148,26 @@ class ObjData:
                         # first triangle
                         if j == 0:
                             vit = [temp_vertex[j], temp_vertex[j + 1], temp_vertex[j + 2]]
-                            nit = [temp_normal[j], temp_normal[j + 1], temp_normal[j + 2]]
+                            if temp_normal:
+                                nit = [temp_normal[j], temp_normal[j + 1], temp_normal[j + 2]]
                             j += 1
                         else:
                             vit = [temp_vertex[j], temp_vertex[j + 1], temp_vertex[0]]
-                            nit = [temp_normal[j], temp_normal[j + 1], temp_normal[0]]
+                            if temp_normal:
+                                nit = [temp_normal[j], temp_normal[j + 1], temp_normal[0]]
                         self.vertex_index.append(vit)
                         self.normal_index.append(nit)
                         j += 1   
                 else:
                     self.vertex_index.append(temp_vertex)
                     self.normal_index.append(temp_normal)
+        # print(self.vertex_position)
+        # print(self.normal_index)
+        # print(self.vertex_index)
+        # print(self.normal_index)
+    
+    def setFileName(self, fileName):
+        self.filename = fileName
 
 def load_shaders(vertex_shader_source, fragment_shader_source):
     # build and compile our shader program
@@ -182,7 +214,7 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
-    global g_persp, g_ortho
+    global g_persp, g_ortho, g_single_mesh, g_hierarchial
     if key==GLFW_KEY_ESCAPE and action==GLFW_PRESS:
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     else:
@@ -194,6 +226,13 @@ def key_callback(window, key, scancode, action, mods):
                 else:
                     g_persp = True
                     g_ortho = False
+            if key==GLFW_KEY_H:
+                if g_single_mesh:
+                    g_single_mesh = False
+                    g_hierarchial = True
+                else:
+                    g_single_mesh = True
+                    g_hierarchial = False
         
 # mouse button clicked
 def mouse_button_callback(window, button, action, mod):
@@ -271,6 +310,7 @@ def drop_callback(window, path):
     # pass this whole file data to Obj instance
     obj = ObjData()
     obj.prepare(filestr)
+    obj.setFileName(path[0])
     g_obj_list.append(obj)
     g_obj_VAO_list.append(prepare_vao_obj(obj))
 
@@ -298,11 +338,19 @@ def prepare_vao_grid():
                 -3.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
                  3.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
             ])
+            # arr.extend([
+            #     -30.0, 0.0, z, 1.0, 1.0, 1.0,
+            #      30.0, 0.0, z, 1.0, 1.0, 1.0
+            # ])
         else:
             arr.extend([
                 -3.0, 0.0, 0.0, 1.0, 0.0, 0.0,
                  3.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             ])
+            # arr.extend([
+            #     -30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            #      30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            # ])
     
     for x in range(-30, 31):
         if x != 0:
@@ -310,11 +358,19 @@ def prepare_vao_grid():
                 x / 10.0, 0.0, -3.0, 1.0, 1.0, 1.0,
                 x / 10.0, 0.0,  3.0, 1.0, 1.0, 1.0
             ])
+            # arr.extend([
+            #     x, 0.0, -30.0, 1.0, 1.0, 1.0,
+            #     x, 0.0,  30.0, 1.0, 1.0, 1.0
+            # ])
         else:
             arr.extend([
                 0.0, 0.0, -3.0, 0.0, 1.0, 0.0,
                 0.0, 0.0,  3.0, 0.0, 1.0, 0.0,
             ])
+            # arr.extend([
+            #     0.0, 0.0, -30.0, 0.0, 1.0, 0.0,
+            #     0.0, 0.0,  30.0, 0.0, 1.0, 0.0,
+            # ])
     
     vertices = glm.array(glm.float32, *arr)
 
@@ -429,7 +485,11 @@ def prepare_vao_obj(obj):
 
     vertices = glm.array(glm.float32, *varr)
 
+    print(vertices)
+
     indices = glm.array(glm.uint32, *farr)
+
+    print(indices)
 
     # create and activate VAO (vertex array object)
     VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
@@ -537,10 +597,11 @@ def main():
         glBindVertexArray(vao_grid)
         glDrawArrays(GL_LINES, 0, 244)
 
+        # check mesh mode here!
         if len(g_obj_VAO_list) != 0:
             glBindVertexArray(g_obj_VAO_list[-1])
             glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
-            glDrawArrays(GL_TRIANGLES, 0, len(g_obj_list[-1].vertex_index))
+            glDrawElements(GL_TRIANGLES, len(g_obj_list[-1].vertex_index) * 3, GL_UNSIGNED_INT, None)
 
         # glBindVertexArray(vao_cube)
         # # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
