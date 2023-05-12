@@ -15,9 +15,8 @@ g_dist = glm.distance(g_cam_pos, g_target)
 
 # mode
 g_persp = True
-g_ortho = False
 g_single_mesh = True
-g_hierarchial = False
+g_wireframe = False
 
 # about vectors
 g_up_vector = glm.vec3(0.0, 1.0, 0.0)
@@ -88,10 +87,8 @@ class ObjData:
         self.more_four_v = 0
 
     def prepare(self, filestr):
-        k = 1
         # prepare for VAO data
         for itr in filestr:
-            k += 1
             if(itr == ''): break
             line = itr.strip()
             v = line.split(' ')
@@ -119,6 +116,7 @@ class ObjData:
 
             elif v[0] == 'f':
                 v.remove('f')
+                self.num_face += 1
                 polygon = len(v)
                 temp_vertex = []
                 temp_normal = []
@@ -141,26 +139,24 @@ class ObjData:
 
                 # change all polygons in face into triangles
                 if polygon > 3:
-                    j = 0
+                    j = 1
+                    if polygon == 4:
+                        self.four_v += 1
+                    else:
+                        self.more_four_v += 1
                     while j < polygon - 1:
                         vit = []
                         nit = []
-                        # first triangle
-                        if j == 0:
-                            vit = [temp_vertex[j], temp_vertex[j + 1], temp_vertex[j + 2]]
-                            if temp_normal:
-                                nit = [temp_normal[j], temp_normal[j + 1], temp_normal[j + 2]]
-                            j += 1
-                        else:
-                            vit = [temp_vertex[j], temp_vertex[j + 1], temp_vertex[0]]
-                            if temp_normal:
-                                nit = [temp_normal[j], temp_normal[j + 1], temp_normal[0]]
+                        vit = [temp_vertex[0], temp_vertex[j], temp_vertex[j + 1]]
+                        if temp_normal:
+                            nit = [temp_normal[0], temp_normal[j], temp_normal[j + 1]]
                         self.vertex_index.append(vit)
                         self.normal_index.append(nit)
                         j += 1   
                 else:
                     self.vertex_index.append(temp_vertex)
                     self.normal_index.append(temp_normal)
+                    self.three_v += 1
         # print(self.vertex_position)
         # print(self.normal_index)
         # print(self.vertex_index)
@@ -214,25 +210,26 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
-    global g_persp, g_ortho, g_single_mesh, g_hierarchial
-    if key==GLFW_KEY_ESCAPE and action==GLFW_PRESS:
+    global g_persp, g_single_mesh, g_wireframe
+    if key == GLFW_KEY_ESCAPE and action == GLFW_PRESS:
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     else:
-        if action==GLFW_PRESS or action==GLFW_REPEAT:
-            if key==GLFW_KEY_V:
+        if action == GLFW_PRESS or action == GLFW_REPEAT:
+            if key == GLFW_KEY_V:
                 if g_persp:
                     g_persp = False
-                    g_ortho = True
                 else:
                     g_persp = True
-                    g_ortho = False
-            if key==GLFW_KEY_H:
+            if key == GLFW_KEY_H:
                 if g_single_mesh:
                     g_single_mesh = False
-                    g_hierarchial = True
                 else:
                     g_single_mesh = True
-                    g_hierarchial = False
+            if key == GLFW_KEY_Z:
+                if g_wireframe:
+                    g_wireframe = False
+                else:
+                    g_wireframe = True
         
 # mouse button clicked
 def mouse_button_callback(window, button, action, mod):
@@ -301,7 +298,12 @@ def scroll_callback(window, xoffset, yoffset):
 
 # drag file callback
 def drop_callback(window, path):
-    global g_obj_list, g_obj_VAO_list
+    global g_obj_list, g_obj_VAO_list, g_single_mesh
+
+    # change mode
+    g_single_mesh = True
+
+    # file io
     print(path[0])
     f = open(path[0], "rt")
     filestr = f.readlines()
@@ -313,6 +315,13 @@ def drop_callback(window, path):
     obj.setFileName(path[0])
     g_obj_list.append(obj)
     g_obj_VAO_list.append(prepare_vao_obj(obj))
+
+    # print Obj info
+    print(f"Obj file name: {obj.filename}")
+    print(f"Total number of faces: {obj.num_face}")
+    print(f"Number of faces with 3 vertices: {obj.three_v}")
+    print(f"Number of faces with 4 vertices: {obj.four_v}")
+    print(f"Number of faces with more than 4 vertices: {obj.more_four_v}")
 
 # def framebuffer_size_callback(window, width, height):
 #     global g_Pers, g_Orth
@@ -332,11 +341,11 @@ def drop_callback(window, path):
 def prepare_vao_grid():
     # prepare vertex data (in main memory)
     arr = []
-    for z in range(-30, 31):
+    for z in range(-100, 101):
         if z != 0:
             arr.extend([
-                -3.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
-                 3.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
+                -10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
+                 10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
             ])
             # arr.extend([
             #     -30.0, 0.0, z, 1.0, 1.0, 1.0,
@@ -344,19 +353,19 @@ def prepare_vao_grid():
             # ])
         else:
             arr.extend([
-                -3.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                 3.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                -10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                 10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             ])
             # arr.extend([
             #     -30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             #      30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             # ])
     
-    for x in range(-30, 31):
+    for x in range(-100, 101):
         if x != 0:
             arr.extend([
-                x / 10.0, 0.0, -3.0, 1.0, 1.0, 1.0,
-                x / 10.0, 0.0,  3.0, 1.0, 1.0, 1.0
+                x / 10.0, 0.0, -10.0, 1.0, 1.0, 1.0,
+                x / 10.0, 0.0,  10.0, 1.0, 1.0, 1.0
             ])
             # arr.extend([
             #     x, 0.0, -30.0, 1.0, 1.0, 1.0,
@@ -364,8 +373,8 @@ def prepare_vao_grid():
             # ])
         else:
             arr.extend([
-                0.0, 0.0, -3.0, 0.0, 1.0, 0.0,
-                0.0, 0.0,  3.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
+                0.0, 0.0,  10.0, 0.0, 1.0, 0.0,
             ])
             # arr.extend([
             #     0.0, 0.0, -30.0, 0.0, 1.0, 0.0,
@@ -373,82 +382,6 @@ def prepare_vao_grid():
             # ])
     
     vertices = glm.array(glm.float32, *arr)
-
-    # create and activate VAO (vertex array object)
-    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
-    glBindVertexArray(VAO)      # activate VAO
-
-    # create and activate VBO (vertex buffer object)
-    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
-    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
-
-    # copy vertex data to VBO
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
-
-    # configure vertex positions
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
-    glEnableVertexAttribArray(0)
-
-    # configure vertex colors
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
-    glEnableVertexAttribArray(1)
-
-    return VAO
-
-# Draw a cube
-def prepare_vao_cube():
-    # prepare vertex data (in main memory)
-    # 36 vertices for 12 triangles
-    vertices = glm.array(glm.float32,
-        # position            color
-        -0.1 ,  0.1 ,  0.1 ,  1, 0, 0, # v0
-         0.1 , -0.1 ,  0.1 ,  1, 0, 0, # v2
-         0.1 ,  0.1 ,  0.1 ,  1, 0, 0, # v1
-                    
-        -0.1 ,  0.1 ,  0.1 ,  1, 0, 0, # v0
-        -0.1 , -0.1 ,  0.1 ,  1, 0, 0, # v3
-         0.1 , -0.1 ,  0.1 ,  1, 0, 0, # v2
-                    
-        -0.1 ,  0.1 , -0.1 ,  1, .5, 0, # v4
-         0.1 ,  0.1 , -0.1 ,  1, .5, 0, # v5
-         0.1 , -0.1 , -0.1 ,  1, .5, 0, # v6
-                    
-        -0.1 ,  0.1 , -0.1 ,  1, .5, 0, # v4
-         0.1 , -0.1 , -0.1 ,  1, .5, 0, # v6
-        -0.1 , -0.1 , -0.1 ,  1, .5, 0, # v7
-                    
-        -0.1 ,  0.1 ,  0.1 ,  1, 1, 0, # v0
-         0.1 ,  0.1 ,  0.1 ,  1, 1, 0, # v1
-         0.1 ,  0.1 , -0.1 ,  1, 1, 0, # v5
-                    
-        -0.1 ,  0.1 ,  0.1 ,  1, 1, 0, # v0
-         0.1 ,  0.1 , -0.1 ,  1, 1, 0, # v5
-        -0.1 ,  0.1 , -0.1 ,  1, 1, 0, # v4
- 
-        -0.1 , -0.1 ,  0.1 ,  1, 1, 1, # v3
-         0.1 , -0.1 , -0.1 ,  1, 1, 1, # v6
-         0.1 , -0.1 ,  0.1 ,  1, 1, 1, # v2
-                    
-        -0.1 , -0.1 ,  0.1 ,  1, 1, 1, # v3
-        -0.1 , -0.1 , -0.1 ,  1, 1, 1, # v7
-         0.1 , -0.1 , -0.1 ,  1, 1, 1, # v6
-                    
-         0.1 ,  0.1 ,  0.1 ,  0, 0, 1, # v1
-         0.1 , -0.1 ,  0.1 ,  0, 0, 1, # v2
-         0.1 , -0.1 , -0.1 ,  0, 0, 1, # v6
-                    
-         0.1 ,  0.1 ,  0.1 ,  0, 0, 1, # v1
-         0.1 , -0.1 , -0.1 ,  0, 0, 1, # v6
-         0.1 ,  0.1 , -0.1 ,  0, 0, 1, # v5
-                    
-        -0.1 ,  0.1 ,  0.1 ,  0, 1, 0, # v0
-        -0.1 , -0.1 , -0.1 ,  0, 1, 0, # v7
-        -0.1 , -0.1 ,  0.1 ,  0, 1, 0, # v3
-                    
-        -0.1 ,  0.1 ,  0.1 ,  0, 1, 0, # v0
-        -0.1 ,  0.1 , -0.1 ,  0, 1, 0, # v4
-        -0.1 , -0.1 , -0.1 ,  0, 1, 0, # v7
-    )
 
     # create and activate VAO (vertex array object)
     VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
@@ -485,11 +418,7 @@ def prepare_vao_obj(obj):
 
     vertices = glm.array(glm.float32, *varr)
 
-    print(vertices)
-
     indices = glm.array(glm.uint32, *farr)
-
-    print(indices)
 
     # create and activate VAO (vertex array object)
     VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
@@ -552,7 +481,6 @@ def main():
     
     # prepare vaos
     vao_grid = prepare_vao_grid()
-    # vao_cube = prepare_vao_cube()
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -564,6 +492,12 @@ def main():
 
         glUseProgram(shader_program)
 
+        # polygon mode
+        if g_wireframe:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        
         # projection matrix
         if g_persp:
             P = glm.perspective(np.radians(45), 1, .1, 100.0)
@@ -595,17 +529,13 @@ def main():
 
         # draw xz grid && xz axis
         glBindVertexArray(vao_grid)
-        glDrawArrays(GL_LINES, 0, 244)
+        glDrawArrays(GL_LINES, 0, 804)
 
         # check mesh mode here!
         if len(g_obj_VAO_list) != 0:
             glBindVertexArray(g_obj_VAO_list[-1])
             glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
             glDrawElements(GL_TRIANGLES, len(g_obj_list[-1].vertex_index) * 3, GL_UNSIGNED_INT, None)
-
-        # glBindVertexArray(vao_cube)
-        # # glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
-        # glDrawArrays(GL_TRIANGLES, 0, 36)
 
         # swap front and back buffers
         glfwSwapBuffers(window)
