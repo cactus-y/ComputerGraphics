@@ -342,44 +342,72 @@ def prepare_vao_grid():
     # prepare vertex data (in main memory)
     arr = []
     for z in range(-100, 101):
-        if z != 0:
-            arr.extend([
-                -10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
-                 10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
-            ])
-            # arr.extend([
-            #     -30.0, 0.0, z, 1.0, 1.0, 1.0,
-            #      30.0, 0.0, z, 1.0, 1.0, 1.0
-            # ])
-        else:
-            arr.extend([
-                -10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                 10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            ])
-            # arr.extend([
-            #     -30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            #      30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            # ])
-    
+        arr.extend([
+            -10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
+             10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
+        ])
+            
     for x in range(-100, 101):
-        if x != 0:
-            arr.extend([
-                x / 10.0, 0.0, -10.0, 1.0, 1.0, 1.0,
-                x / 10.0, 0.0,  10.0, 1.0, 1.0, 1.0
-            ])
-            # arr.extend([
-            #     x, 0.0, -30.0, 1.0, 1.0, 1.0,
-            #     x, 0.0,  30.0, 1.0, 1.0, 1.0
-            # ])
-        else:
-            arr.extend([
-                0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
-                0.0, 0.0,  10.0, 0.0, 1.0, 0.0,
-            ])
-            # arr.extend([
-            #     0.0, 0.0, -30.0, 0.0, 1.0, 0.0,
-            #     0.0, 0.0,  30.0, 0.0, 1.0, 0.0,
-            # ])
+        arr.extend([
+            x / 10.0, 0.0, -10.0, 1.0, 1.0, 1.0,
+            x / 10.0, 0.0,  10.0, 1.0, 1.0, 1.0
+        ])
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
+def prepare_vao_x_axis():
+    # prepare vertex data (in main memory)
+    arr = [-10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            10.0, 0.0, 0.0, 1.0, 0.0, 0.0 ]
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
+def prepare_vao_z_axis():
+    # prepare vertex data (in main memory)
+    arr = [0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
+           0.0, 0.0,  10.0, 0.0, 1.0, 0.0 ]
     
     vertices = glm.array(glm.float32, *arr)
 
@@ -413,7 +441,6 @@ def prepare_vao_obj(obj):
     
     for i in range(0, len(obj.vertex_index)):
         farr.extend(obj.vertex_index[i])
-
 
 
     vertices = glm.array(glm.float32, *varr)
@@ -481,6 +508,8 @@ def main():
     
     # prepare vaos
     vao_grid = prepare_vao_grid()
+    vao_x = prepare_vao_x_axis()
+    vao_z = prepare_vao_z_axis()
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -530,6 +559,13 @@ def main():
         # draw xz grid && xz axis
         glBindVertexArray(vao_grid)
         glDrawArrays(GL_LINES, 0, 804)
+
+        # change color and draw x-axis and z-axis
+        glBindVertexArray(vao_x)
+        glDrawArrays(GL_LINES, 0, 2)
+
+        glBindVertexArray(vao_z)
+        glDrawArrays(GL_LINES, 0, 2)
 
         # check mesh mode here!
         if len(g_obj_VAO_list) != 0:

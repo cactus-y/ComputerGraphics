@@ -78,6 +78,7 @@ void main()
 {
     // light and material properties
     vec3 light_pos = vec3(3,2,4);
+    vec3 another_light_pos = vec3(-3, 2, -4);
     vec3 light_color = vec3(1,1,1);
     vec3 material_color = color;
     float material_shininess = 32.0;
@@ -99,18 +100,26 @@ void main()
     vec3 normal = normalize(vout_normal);
     vec3 surface_pos = vout_surface_pos;
     vec3 light_dir = normalize(light_pos - surface_pos);
+    vec3 another_light_dir = normalize(another_light_pos - surface_pos);
 
     // diffuse
     float diff = max(dot(normal, light_dir), 0);
+    float another_diff = max(dot(normal, another_light_dir), 0);
     vec3 diffuse = diff * light_diffuse * material_diffuse;
+    vec3 another_diffuse = another_diff * light_diffuse * material_diffuse;
+
 
     // specular
     vec3 view_dir = normalize(view_pos - surface_pos);
     vec3 reflect_dir = reflect(-light_dir, normal);
+    vec3 another_reflect_dir = reflect(-another_light_dir, normal);
     float spec = pow( max(dot(view_dir, reflect_dir), 0.0), material_shininess);
+    float another_spec = pow(max(dot(view_dir, another_reflect_dir), 0.0), material_shininess);
     vec3 specular = spec * light_specular * material_specular;
+    vec3 another_specular = another_spec * light_specular * material_specular;
 
     vec3 color = ambient + diffuse + specular;
+    vec3 color += ambient + another_diffuse + another_specular;
     FragColor = vec4(color, 1.);
 }
 '''
@@ -388,19 +397,7 @@ def prepare_vao_grid():
                 -10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
                  10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
             ])
-            # arr.extend([
-            #     -30.0, 0.0, z, 1.0, 1.0, 1.0,
-            #      30.0, 0.0, z, 1.0, 1.0, 1.0
-            # ])
-        else:
-            arr.extend([
-                -10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                 10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            ])
-            # arr.extend([
-            #     -30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            #      30.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            # ])
+
     
     for x in range(-100, 101):
         if x != 0:
@@ -408,19 +405,64 @@ def prepare_vao_grid():
                 x / 10.0, 0.0, -10.0, 1.0, 1.0, 1.0,
                 x / 10.0, 0.0,  10.0, 1.0, 1.0, 1.0
             ])
-            # arr.extend([
-            #     x, 0.0, -30.0, 1.0, 1.0, 1.0,
-            #     x, 0.0,  30.0, 1.0, 1.0, 1.0
-            # ])
-        else:
-            arr.extend([
-                0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
-                0.0, 0.0,  10.0, 0.0, 1.0, 0.0,
-            ])
-            # arr.extend([
-            #     0.0, 0.0, -30.0, 0.0, 1.0, 0.0,
-            #     0.0, 0.0,  30.0, 0.0, 1.0, 0.0,
-            # ])
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
+# x-axis
+def prepare_vao_x_axis():
+    # prepare vertex data (in main memory)
+    arr = [-10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            10.0, 0.0, 0.0, 1.0, 0.0, 0.0 ]
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
+# z-axis
+def prepare_vao_z_axis():
+    # prepare vertex data (in main memory)
+    arr = [ 0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
+            0.0, 0.0,  10.0, 0.0, 1.0, 0.0 ]
     
     vertices = glm.array(glm.float32, *arr)
 
@@ -522,6 +564,8 @@ def main():
     
     # prepare vaos
     vao_grid = prepare_vao_grid()
+    vao_x = prepare_vao_x_axis()
+    vao_z = prepare_vao_z_axis()
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -575,10 +619,18 @@ def main():
         glUniform1f(factor_loc, 1.0)
         glUniform3f(color_loc, 1.0, 1.0, 1.0)
 
-
-        # draw xz grid && xz axis
+        # draw xz grid
         glBindVertexArray(vao_grid)
-        glDrawArrays(GL_LINES, 0, 804)
+        glDrawArrays(GL_LINES, 0, 800)
+
+        # change color and draw x-axis && z-axis
+        glUniform3f(color_loc, 1.0, 0.0, 0.0)
+        glBindVertexArray(vao_x)
+        glDrawArrays(GL_LINES, 0, 2)
+
+        glUniform3f(color_loc, 0.0, 1.0, 0.0)
+        glBindVertexArray(vao_z)
+        glDrawArrays(GL_LINES, 0, 2)
 
         # check mesh mode here!
         if len(g_obj_VAO_list) != 0:
