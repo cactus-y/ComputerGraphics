@@ -3,6 +3,7 @@ from glfw.GLFW import *
 import glm
 import ctypes
 import numpy as np
+import os
 
 ### global variables ###
 
@@ -37,6 +38,8 @@ g_zoom = 1.0
 # about obj file io
 g_obj_list = []
 g_obj_VAO_list = []
+g_obj_hier_VAO_list = []
+g_obj_hier_list = []
 
 ########################
 
@@ -44,33 +47,83 @@ g_vertex_shader_src = '''
 #version 330 core
 
 layout (location = 0) in vec3 vin_pos; 
-layout (location = 1) in vec3 vin_color; 
+layout (location = 1) in vec3 vin_normal; 
 
-out vec4 vout_color;
+out vec3 vout_surface_pos;
+out vec3 vout_normal;
 
 uniform mat4 MVP;
+uniform mat4 M;
 
 void main()
 {
-    // 3D points in homogeneous coordinates
     vec4 p3D_in_hcoord = vec4(vin_pos.xyz, 1.0);
-
     gl_Position = MVP * p3D_in_hcoord;
 
-    vout_color = vec4(vin_color, 1.);
+    vout_surface_pos = vec3(M * vec4(vin_pos, 1));
+    vout_normal = normalize( mat3(inverse(transpose(M)) ) * vin_normal);
 }
 '''
 
 g_fragment_shader_src = '''
 #version 330 core
 
-in vec4 vout_color;
+in vec3 vout_surface_pos;
+in vec3 vout_normal;
 
 out vec4 FragColor;
 
+uniform vec3 view_pos;
+uniform float factor;
+uniform vec3 color;
+
 void main()
 {
-    FragColor = vout_color;
+    // light and material properties
+    vec3 light_pos = vec3(3,2,4);
+    vec3 another_light_pos = vec3(-3, 2, -4);
+    vec3 light_color = vec3(1,1,1);
+    vec3 material_color = color;
+    float material_shininess = 32.0;
+
+    // light components
+    vec3 light_ambient = factor*light_color;
+    vec3 light_diffuse = light_color;
+    vec3 light_specular = light_color;
+
+    // material components
+    vec3 material_ambient = material_color;
+    vec3 material_diffuse = material_color;
+    vec3 material_specular = light_color;  // for non-metal material
+
+    // ambient
+    vec3 ambient = light_ambient * material_ambient;
+
+    // for diffiuse and specular
+    vec3 normal = normalize(vout_normal);
+    vec3 surface_pos = vout_surface_pos;
+    vec3 light_dir = normalize(light_pos - surface_pos);
+    vec3 another_light_dir = normalize(another_light_pos - surface_pos);
+
+    // diffuse
+    float diff = max(dot(normal, light_dir), 0);
+    float another_diff = max(dot(normal, another_light_dir), 0);
+    vec3 diffuse = diff * light_diffuse * material_diffuse;
+    vec3 another_diffuse = another_diff * light_diffuse * material_diffuse;
+
+
+    // specular
+    vec3 view_dir = normalize(view_pos - surface_pos);
+    vec3 reflect_dir = reflect(-light_dir, normal);
+    vec3 another_reflect_dir = reflect(-another_light_dir, normal);
+    float spec = pow( max(dot(view_dir, reflect_dir), 0.0), material_shininess);
+    float another_spec = pow(max(dot(view_dir, another_reflect_dir), 0.0), material_shininess);
+    vec3 specular = spec * light_specular * material_specular;
+    vec3 another_specular = another_spec * light_specular * material_specular;
+
+    vec3 color = ambient + diffuse + specular;
+    color += ambient + another_diffuse + another_specular;
+    FragColor = vec4(color, 1.);
 }
 '''
 
@@ -85,6 +138,7 @@ class ObjData:
         self.three_v = 0
         self.four_v = 0
         self.more_four_v = 0
+        self.color = glm.vec3(1.0, 1.0, 1.0)
 
     def prepare(self, filestr):
         # prepare for VAO data
@@ -95,7 +149,6 @@ class ObjData:
             
             remove_blank = {' ', ''}
             v = [x for x in v if x not in remove_blank]
-            # print(v)
 
             # check a line of data
             if not v:
@@ -104,8 +157,6 @@ class ObjData:
                 # vertex position list
                 v.remove('v')
                 v = list(map(float, v))
-                # v = list(map(lambda x : x / 10.0, v))
-                v.extend([1.0, 1.0, 1.0]) # color as red
                 self.vertex_position.append(v)
 
             elif v[0] == 'vn':
@@ -132,10 +183,6 @@ class ObjData:
                     else:
                         # has only vertex index
                         temp_vertex.append(int(str) - 1)
-                    
-        
-                # print(temp_vertex)
-                # print(temp_normal)
 
                 # change all polygons in face into triangles
                 if polygon > 3:
@@ -157,13 +204,47 @@ class ObjData:
                     self.vertex_index.append(temp_vertex)
                     self.normal_index.append(temp_normal)
                     self.three_v += 1
-        # print(self.vertex_position)
-        # print(self.normal_index)
-        # print(self.vertex_index)
-        # print(self.normal_index)
     
     def setFileName(self, fileName):
         self.filename = fileName
+
+    def setColor(self, color):
+        self.color = color
+
+class Node:
+    def __init__(self, parent, scale, color):
+        # hierarchy
+        self.parent = parent
+        self.children = []
+        if parent is not None:
+            parent.children.append(self)
+
+        # transform
+        self.transform = glm.mat4()
+        self.global_transform = glm.mat4()
+
+        # shape
+        self.scale = scale
+        self.color = color
+
+    def set_transform(self, transform):
+        self.transform = transform
+
+    def update_tree_global_transform(self):
+        if self.parent is not None:
+            self.global_transform = self.parent.get_global_transform() * self.transform
+        else:
+            self.global_transform = self.transform
+
+        for child in self.children:
+            child.update_tree_global_transform()
+
+    def get_global_transform(self):
+        return self.global_transform
+    def get_scale(self):
+        return self.scale
+    def get_color(self):
+        return self.color
 
 def load_shaders(vertex_shader_source, fragment_shader_source):
     # build and compile our shader program
@@ -223,8 +304,13 @@ def key_callback(window, key, scancode, action, mods):
             if key == GLFW_KEY_H:
                 if g_single_mesh:
                     g_single_mesh = False
+                    load_objs_for_h_mode("stoneman.obj")
+                    load_objs_for_h_mode("groudon.obj")
+                    load_objs_for_h_mode("ball.obj")
+                    load_objs_for_h_mode("horse.obj")
+                    load_objs_for_h_mode("skull.obj")
                 else:
-                    g_single_mesh = True
+                    change_to_mesh()
             if key == GLFW_KEY_Z:
                 if g_wireframe:
                     g_wireframe = False
@@ -298,13 +384,14 @@ def scroll_callback(window, xoffset, yoffset):
 
 # drag file callback
 def drop_callback(window, path):
-    global g_obj_list, g_obj_VAO_list, g_single_mesh
+    global g_obj_list, g_obj_VAO_list
 
     # change mode
-    g_single_mesh = True
+    change_to_mesh()
 
     # file io
-    print(path[0])
+    lst = path[0].split('/')
+
     f = open(path[0], "rt")
     filestr = f.readlines()
     f.close()
@@ -312,7 +399,7 @@ def drop_callback(window, path):
     # pass this whole file data to Obj instance
     obj = ObjData()
     obj.prepare(filestr)
-    obj.setFileName(path[0])
+    obj.setFileName(lst[-1])
     g_obj_list.append(obj)
     g_obj_VAO_list.append(prepare_vao_obj(obj))
 
@@ -342,16 +429,19 @@ def prepare_vao_grid():
     # prepare vertex data (in main memory)
     arr = []
     for z in range(-100, 101):
-        arr.extend([
-            -10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
-             10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
-        ])
-            
+        if z != 0:
+            arr.extend([
+                -10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0,
+                 10.0, 0.0, z / 10.0, 1.0, 1.0, 1.0
+            ])
+
+    
     for x in range(-100, 101):
-        arr.extend([
-            x / 10.0, 0.0, -10.0, 1.0, 1.0, 1.0,
-            x / 10.0, 0.0,  10.0, 1.0, 1.0, 1.0
-        ])
+        if x != 0:
+            arr.extend([
+                x / 10.0, 0.0, -10.0, 1.0, 1.0, 1.0,
+                x / 10.0, 0.0,  10.0, 1.0, 1.0, 1.0
+            ])
     
     vertices = glm.array(glm.float32, *arr)
 
@@ -376,6 +466,7 @@ def prepare_vao_grid():
 
     return VAO
 
+# x-axis
 def prepare_vao_x_axis():
     # prepare vertex data (in main memory)
     arr = [-10.0, 0.0, 0.0, 1.0, 0.0, 0.0,
@@ -404,10 +495,11 @@ def prepare_vao_x_axis():
 
     return VAO
 
+# z-axis
 def prepare_vao_z_axis():
     # prepare vertex data (in main memory)
-    arr = [0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
-           0.0, 0.0,  10.0, 0.0, 1.0, 0.0 ]
+    arr = [ 0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
+            0.0, 0.0,  10.0, 0.0, 1.0, 0.0 ]
     
     vertices = glm.array(glm.float32, *arr)
 
@@ -434,18 +526,35 @@ def prepare_vao_z_axis():
 
 # draw an object by using obj file
 def prepare_vao_obj(obj):
-    varr = []
-    farr = []
-    for i in range(0, len(obj.vertex_position)):
-        varr.extend(obj.vertex_position[i])
-    
+    arr = []
     for i in range(0, len(obj.vertex_index)):
-        farr.extend(obj.vertex_index[i])
+        if obj.normal_vector:
+            arr.extend(obj.vertex_position[obj.vertex_index[i][0]])
+            arr.extend(obj.normal_vector[obj.normal_index[i][0]])
+            arr.extend(obj.vertex_position[obj.vertex_index[i][1]])
+            arr.extend(obj.normal_vector[obj.normal_index[i][1]])
+            arr.extend(obj.vertex_position[obj.vertex_index[i][2]])
+            arr.extend(obj.normal_vector[obj.normal_index[i][2]])
+        else:
+            # make normal vector
+            pt0 = obj.vertex_position[obj.vertex_index[i][0]]
+            pt1 = obj.vertex_position[obj.vertex_index[i][1]]
+            pt2 = obj.vertex_position[obj.vertex_index[i][2]]
+            v0 = glm.vec3(pt1[0] - pt0[0], pt1[1] - pt0[1], pt1[2] - pt0[2])
+            v1 = glm.vec3(pt2[0] - pt0[0], pt2[1] - pt0[1], pt2[2] - pt0[2])
+            n = np.cross(v0, v1)
 
+            arr.extend(pt0)
+            arr.extend([n[0], n[1], n[2]])
+            arr.extend(obj.vertex_position[obj.vertex_index[i][1]])
+            arr.extend([n[0], n[1], n[2]])
+            arr.extend(obj.vertex_position[obj.vertex_index[i][2]])
+            arr.extend([n[0], n[1], n[2]])
 
-    vertices = glm.array(glm.float32, *varr)
+    # print(arr)
+    vertices = glm.array(glm.float32, *arr)
 
-    indices = glm.array(glm.uint32, *farr)
+    # print(vertices)
 
     # create and activate VAO (vertex array object)
     VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
@@ -455,22 +564,60 @@ def prepare_vao_obj(obj):
     VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
     glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
 
-    EBO = glGenBuffers(1)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
-
     # copy vertex data to VBO
     glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices.ptr, GL_STATIC_DRAW)
 
     # configure vertex positions
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
     glEnableVertexAttribArray(0)
 
-    # configure vertex colors
+    # configure vertex normals
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
     glEnableVertexAttribArray(1)
 
     return VAO
+    
+def load_objs_for_h_mode(filename):
+    global g_obj_hier_list, g_obj_hier_VAO_list
+    # rel_path = os.path.join("./", "objects/", filename)
+    rel_path = os.path.join("./", filename)
+    print(rel_path)
+    f = open(rel_path, "rt")
+    filestr = f.readlines()
+    f.close()
+
+    # pass this whole file data to Obj instance
+    obj = ObjData()
+    obj.prepare(filestr)
+    obj.setFileName(filename)
+    g_obj_hier_list.append(obj)
+    g_obj_hier_VAO_list.append(prepare_vao_obj(obj))
+
+    # print Obj info
+    print(f"Obj file name: {obj.filename}")
+    # print(f"Total number of faces: {obj.num_face}")
+    # print(f"Number of faces with 3 vertices: {obj.three_v}")
+    # print(f"Number of faces with 4 vertices: {obj.four_v}")
+    # print(f"Number of faces with more than 4 vertices: {obj.more_four_v}")
+
+def change_to_mesh():
+    global g_single_mesh, g_obj_hier_list, g_obj_hier_VAO_list
+    g_single_mesh = True
+    g_obj_hier_list = []
+    g_obj_hier_VAO_list = []
+
+
+def draw_node(vao, node, obj, VP, MVP_loc, M_loc, color_loc):
+    M = node.get_global_transform() * glm.scale(node.get_scale())
+    MVP = VP * node.get_global_transform() * glm.scale(node.get_scale())
+    color = node.get_color()
+
+    glBindVertexArray(vao)
+    glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+    glUniformMatrix4fv(M_loc, 1, GL_FALSE, glm.value_ptr(M))
+    glUniform3f(color_loc, color.r, color.g, color.b)
+    glDrawArrays(GL_TRIANGLES, 0, len(obj.vertex_index) * 3)
+    
 
 def main():
     global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_up_vector
@@ -505,6 +652,10 @@ def main():
 
     # get uniform locations
     MVP_loc = glGetUniformLocation(shader_program, 'MVP')
+    M_loc = glGetUniformLocation(shader_program, 'M')
+    view_pos_loc = glGetUniformLocation(shader_program, 'view_pos')
+    factor_loc = glGetUniformLocation(shader_program, 'factor')
+    color_loc = glGetUniformLocation(shader_program, 'color')
     
     # prepare vaos
     vao_grid = prepare_vao_grid()
@@ -553,25 +704,64 @@ def main():
 
         # current frame: P*V*I (now this is the world frame)
         I = glm.mat4()
-        MVP = P*V*I
+
+        M = glm.mat4()
+        MVP = P*V*M
+
         glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+        glUniformMatrix4fv(M_loc, 1, GL_FALSE, glm.value_ptr(M))
+        glUniform3f(view_pos_loc, g_cam_pos.x, g_cam_pos.y, g_cam_pos.z)
+        glUniform1f(factor_loc, 1.0)
+        glUniform3f(color_loc, 1.0, 1.0, 1.0)
 
-        # draw xz grid && xz axis
+        # draw xz grid
         glBindVertexArray(vao_grid)
-        glDrawArrays(GL_LINES, 0, 804)
+        glDrawArrays(GL_LINES, 0, 800)
 
-        # change color and draw x-axis and z-axis
+        # change color and draw x-axis && z-axis
+        glUniform3f(color_loc, 1.0, 0.0, 0.0)
         glBindVertexArray(vao_x)
         glDrawArrays(GL_LINES, 0, 2)
 
+        glUniform3f(color_loc, 0.0, 1.0, 0.0)
         glBindVertexArray(vao_z)
         glDrawArrays(GL_LINES, 0, 2)
 
-        # check mesh mode here!
-        if len(g_obj_VAO_list) != 0:
-            glBindVertexArray(g_obj_VAO_list[-1])
-            glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
-            glDrawElements(GL_TRIANGLES, len(g_obj_list[-1].vertex_index) * 3, GL_UNSIGNED_INT, None)
+        # single mesh mode
+        if g_single_mesh:     
+            if len(g_obj_VAO_list) != 0:
+                glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+                glUniformMatrix4fv(M_loc, 1, GL_FALSE, glm.value_ptr(M))
+                glUniform1f(factor_loc, 0.1)
+                glUniform3f(color_loc, 1.0, 1.0, 1.0)
+                glBindVertexArray(g_obj_VAO_list[-1])
+                glDrawArrays(GL_TRIANGLES, 0, len(g_obj_list[-1].vertex_index) * 3)
+        
+        # hierarchical mode
+        else:
+            if len(g_obj_hier_VAO_list) != 0:
+                stoneman = Node(None, glm.vec3(1.0, 1.0, 1.0), glm.vec3(0.82745098039, 0.77647058823, 0.65098039215))
+                groudon = Node(stoneman, glm.vec3(1.0, 1.0, 1.0), glm.vec3(0.64705882352, 0.16470588235, 0.16470588235))
+                ball = Node(stoneman, glm.vec3(1.0, 1.0, 1.0), glm.vec3(0.32745098039, 0.32745098039, 0.32745098039))
+                horse = Node(groudon, glm.vec3(1.0, 1.0, 1.0), glm.vec3(0.43529411764, 0.30980392156, 0.15686274509))
+                skull = Node(groudon, glm.vec3(1.0, 1.0, 1.0), glm.vec3(1.0, 1.0, 1.0))
+                
+                t = glfwGetTime()
+
+                stoneman.set_transform(glm.translate(glm.vec3(3 * glm.sin(t), 0, 0)))
+                groudon.set_transform(glm.rotate(t, glm.vec3(0, 1, 0)) * glm.translate(glm.vec3(1.0, 0.0, 1.0)))
+                ball.set_transform(glm.rotate(t, glm.vec3(0, 1, 0)) * glm.translate(glm.vec3(2.0, 1.0, -3.0)))
+                horse.set_transform(glm.translate(glm.vec3(5 * glm.sin(t), 0, 0)) * glm.translate(glm.vec3(-1.5, 0.0, 0.0)))
+                skull.set_transform(glm.rotate(t, glm.vec3(0,0,1)) * glm.translate(glm.vec3(2.0, -1.0, 1.5)))
+
+                stoneman.update_tree_global_transform()
+
+                glUniform1f(factor_loc, 0.1)
+                draw_node(g_obj_hier_VAO_list[0], stoneman, g_obj_hier_list[0], P * V, MVP_loc, M_loc, color_loc)
+                draw_node(g_obj_hier_VAO_list[1], groudon, g_obj_hier_list[1], P * V, MVP_loc, M_loc, color_loc)
+                draw_node(g_obj_hier_VAO_list[2], ball, g_obj_hier_list[2], P * V, MVP_loc, M_loc, color_loc)
+                draw_node(g_obj_hier_VAO_list[3], horse, g_obj_hier_list[3], P * V, MVP_loc, M_loc, color_loc)
+                draw_node(g_obj_hier_VAO_list[4], skull, g_obj_hier_list[4], P * V, MVP_loc, M_loc, color_loc)
 
         # swap front and back buffers
         glfwSwapBuffers(window)
