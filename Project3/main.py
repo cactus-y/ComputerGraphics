@@ -137,15 +137,36 @@ class Node:
         self.channel = 0
         self.chanList = []
         self.endsite = []
+        self.order = []
+        self.children = []
+        self.joint_transform = glm.mat4()
+        self.global_transform = glm.mat4()
+        if parent is not None:
+            parent.children.append(self)
     
     def setName(self, name):
         self.name = name
     
     # def setParent(self, node):
     #     self.parent = node
+
+    def setJointTransform(self, joint):
+        self.joint_transform = joint
+
+    def updateGlobal(self):
+        if self.parent is not None:
+            self.global_transform = self.parent.global_transform * glm.translate(glm.vec3(self.offset[0], self.offset[1], self.offset[2])) * self.joint_transform
+        else:
+            self.global_transform = glm.translate(glm.vec3(self.offset[0], self.offset[1], self.offset[2])) * self.joint_transform
+
+        for child in self.children:
+            child.updateGlobal()
     
     def setOffset(self, offset):
         self.offset = offset
+    
+    def setOrder(self, order):
+        self.order = order
     
     def setEndsite(self, endsite):
         self.endsite = endsite
@@ -336,13 +357,17 @@ def drop_callback(window, path):
     stack = []
 
     for itr in filestr:
+        # if not stack:
+        #     nodeIdx = 0
+        # else:
+        #     if endsite:
+        #         nodeIdx = len(stack) - 2
+        #     else:
+        #         nodeIdx = len(stack) - 1
         if not stack:
             nodeIdx = 0
         else:
-            if endsite:
-                nodeIdx = len(stack) - 2
-            else:
-                nodeIdx = len(stack) - 1
+            nodeIdx = stack[-1]
         
         if itr == '':
             break
@@ -362,7 +387,7 @@ def drop_callback(window, path):
                 node.setName(l[1])
                 nodeList.append(node)
             elif l[0] == '{':
-                stack.append(l[0])
+                stack.append(len(nodeList) - 1)
             elif l[0] == '}':
                 stack.pop()
             elif l[0] == 'OFFSET':
@@ -399,6 +424,7 @@ def drop_callback(window, path):
                 i = 0
                 pos = [0., 0., 0.]
                 rot = [0., 0., 0.]
+                order = []
                 for node in nodeList:
                     channel = node.channel
                     for idx in range(channel):
@@ -411,16 +437,21 @@ def drop_callback(window, path):
                             pos[2] = num
                         elif node.chanList[idx] == 'XROTATION':
                             rot[0] = num
+                            order.append(0)
                         elif node.chanList[idx] == 'YROTATION':
                             rot[1] = num
+                            order.append(1)
                         elif node.chanList[idx] == 'ZROTATION':
                             rot[2] = num
+                            order.append(2)
                     i += channel
                     if node.parent == None:
                         node.addPosition(pos)
                         node.addRotation(rot)
+                        node.setOrder(order)
                     else:
                         node.addRotation(rot)
+                        node.setOrder(order)
     
     g_node_list.append(nodeList)
     g_frame_list.append(frame)
@@ -434,6 +465,23 @@ def drop_callback(window, path):
     print("List of all joint names:")
     for idx in range(len(nodeList)):
         print(nodeList[idx].name)
+
+
+    # print out
+    # for nd in g_node_list[-1]:
+    #     print()
+    #     print(f"node name: {nd.name}")
+    #     if nd.parent:
+    #         print(f"parent: {nd.parent.name}")
+    #     else:
+    #         print(f"parent: None")
+    #     print(f"offset: (x, y, z): ({nd.offset[0]}, {nd.offset[1]}, {nd.offset[2]})")
+    #     i = 1
+    #     for rot in nd.rotation:
+    #         print(f"{i}th rotation: (x, y, z): ({rot[0]}, {rot[1]}, {rot[2]})")
+    #         i += 1
+
+
 
 # def framebuffer_size_callback(window, width, height):
 #     global g_Pers, g_Orth
@@ -525,6 +573,35 @@ def prepare_vao_z_axis():
     # prepare vertex data (in main memory)
     arr = [ 0.0, 0.0, -10.0, 0.0, 1.0, 0.0,
             0.0, 0.0,  10.0, 0.0, 1.0, 0.0 ]
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
+# 
+def prepare_stickman():
+    # prepare vertex data (in main memory)
+    arr = [ 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+            0.0, 0.1, 0.0, 0.0, 1.0, 0.0 ]
     
     vertices = glm.array(glm.float32, *arr)
 
