@@ -132,6 +132,7 @@ void main()
 class Node:
     def __init__(self, parent):
         self.offset = []
+        self.tpos = []
         self.rotation = []
         self.position = []
         self.parent = parent
@@ -167,6 +168,9 @@ class Node:
     
     def setOffset(self, offset):
         self.offset = offset
+
+    def setTpos(self, tpos):
+        self.tpos = tpos
     
     def setOrder(self, order):
         self.order = order
@@ -188,6 +192,13 @@ class Node:
         self.chanList = chanList
 
     # def setShapeTransform(self):
+    #     if len(self.children) != 0:
+    #         offset = glm.vec3(self.offset[0], self.offset[1], self.offset[2]) 
+    #     else:
+    #         offset = glm.vec3(self.offset[0], self.offset[1], self.offset[2])
+    #         endsite = glm.vec3(self.endsite[0], self.endsite[1], self.endsite[2])
+    #         self.shape_transform = glm.scale(0, glm.distance(offset, endsite), 0)
+
         
     
 
@@ -330,7 +341,7 @@ def scroll_callback(window, xoffset, yoffset):
 
 # drag file callback
 def drop_callback(window, path):
-    global g_node_list, g_frame_list, g_frameTime_list, g_animate
+    global g_node_list, g_frame_list, g_frameTime_list, g_animate, g_line_vao_list
 
     if g_animate:
         g_animate = False
@@ -466,6 +477,24 @@ def drop_callback(window, path):
     g_frame_list.append(frame)
     g_frameTime_list.append(frameTime)
 
+    for node in nodeList:
+        print(f"node name: {node.name}, offset: ({node.offset})")
+
+    vaoList = []
+
+    # set initial shape transformation
+    nodeList[0].setTpos([0, 0, 0])
+    for i in range(1, len(nodeList)):
+        curNode = nodeList[i]
+        parent = curNode.parent
+        curNode.setTpos([parent.tpos[0] + curNode.offset[0], parent.tpos[1] + curNode.offset[1], parent.tpos[2] + curNode.offset[2]])
+        vaoList.append(prepare_vao_line_stickman(parent.tpos, curNode.tpos))
+        if len(nodeList[i].children) == 0:
+            temp = [curNode.tpos[0] + curNode.endsite[0], curNode.tpos[1] + curNode.endsite[1], curNode.tpos[2] + curNode.endsite[2]]
+            vaoList.append(prepare_vao_line_stickman(curNode.tpos, temp))
+
+    g_line_vao_list.append(vaoList)
+    print(len(vaoList))
 
     # print bvh file info
     print(f"bvh file name: {filename}")
@@ -636,6 +665,122 @@ def prepare_vao_line():
 
     return VAO
 
+def prepare_vao_line_stickman(coord1, coord2):
+    # prepare vertex data (in main memory)
+    arr = []
+    arr.extend(coord1)
+    arr.extend([1, 1, 1])
+    arr.extend(coord2)
+    arr.extend([1, 1, 1])
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
+def test_vao():
+    # prepare vertex data (in main memory)
+    arr = [
+        0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+        0.0, 0.118905, 0.0, 1.0, 1.0, 1.0,
+
+        0.0, 0.118905, 0.0, 1.0, 1.0, 1.0,
+        0.0, 0.3439156, 0.00139004, 1.0, 1.0, 1.0,
+
+        0.0, 0.3439156, 0.00139004, 1.0, 1.0, 1.0,
+        -0.0029, 0.127742, 0.0251395, 1.0, 1.0, 1.0,
+        
+        0.0, 0.118905, 0.0, 1.0, 1.0, 1.0,
+        -0.192727, 0.25291768, 0.00229786, 1.0, 1.0, 1.0,
+
+        -0.192727, 0.25291768, 0.00229786, 1.0, 1.0, 1.0,
+        -0.26364, 0.00099144, -0.0142434, 1.0, 1.0, 1.0,
+
+        -0.26364, 0.00099144, -0.0142434, 1.0, 1.0, 1.0,
+        -0.220324, 0.00085362, 0.0102216, 1.0, 1.0, 1.0,
+
+        -0.220324, 0.00085362, 0.0102216, 1.0, 1.0, 1.0,
+        -0.133284, -0.006, 0.0150291, 1.0, 1.0, 1.0,
+
+        0.0, 0.118905, 0.0, 1.0, 1.0, 1.0,
+        0.192727, 0.2529176801, 0.00229786, 1.0, 1.0, 1.0,
+
+        0.192727, 0.2529176801, 0.00229786, 1.0, 1.0, 1.0,
+        0.262597, 0.00099144, -0.0142434, 1.0, 1.0, 1.0,
+
+        0.262597, 0.00099144, -0.0142434, 1.0, 1.0, 1.0,
+        0.220902, 0.00085362, 0.0102216, 1.0, 1.0, 1.0,
+
+        0.220902, 0.00085362, 0.0102216, 1.0, 1.0, 1.0,
+        0.13419, -0.006, 0.0150291, 1.0, 1.0, 1.0,
+
+        0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+        -0.089458, -0.0866707, 0.00101652, 1.0, 1.0, 1.0,
+
+        -0.089458, -0.0866707, 0.00101652, 1.0, 1.0, 1.0,
+        0.0, -0.444227, 0.013727, 1.0, 1.0, 1.0,
+
+        0.0, -0.444227, 0.013727, 1.0, 1.0, 1.0,
+        0.00253549, -0.420924, -0.0146059, 1.0, 1.0, 1.0,
+
+        0.00253549, -0.420924, -0.0146059, 1.0, 1.0, 1.0,
+        0.0004, -0.0441509, 0.084991, 1.0, 1.0, 1.0,
+
+        0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+        0.089458, -0.0866707, 0.00101652, 1.0, 1.0, 1.0,
+
+        0.089458, -0.0866707, 0.00101652, 1.0, 1.0, 1.0,
+        0.0, -0.444227, 0.013727, 1.0, 1.0, 1.0,
+
+        0.0, -0.444227, 0.013727, 1.0, 1.0, 1.0,
+        -0.00253549, -0.420924, -0.0146059, 1.0, 1.0, 1.0,
+
+        -0.00253549, -0.420924, -0.0146059, 1.0, 1.0, 1.0,
+        -0.0004, -0.0441509, 0.084991, 1.0, 1.0, 1.0,
+    ]
+
+    
+    vertices = glm.array(glm.float32, *arr)
+
+    # create and activate VAO (vertex array object)
+    VAO = glGenVertexArrays(1)  # create a vertex array object ID and store it to VAO variable
+    glBindVertexArray(VAO)      # activate VAO
+
+    # create and activate VBO (vertex buffer object)
+    VBO = glGenBuffers(1)   # create a buffer object ID and store it to VBO variable
+    glBindBuffer(GL_ARRAY_BUFFER, VBO)  # activate VBO as a vertex buffer object
+
+    # copy vertex data to VBO
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices.ptr, GL_STATIC_DRAW) # allocate GPU memory for and copy vertex data to the currently bound vertex buffer
+
+    # configure vertex positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), None)
+    glEnableVertexAttribArray(0)
+
+    # configure vertex colors
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * glm.sizeof(glm.float32), ctypes.c_void_p(3*glm.sizeof(glm.float32)))
+    glEnableVertexAttribArray(1)
+
+    return VAO
+
 
 def draw_node(vao, node, VP, MVP_loc, color_loc):
     MVP = VP * node.global_transform * node.shape_transform
@@ -691,6 +836,8 @@ def main():
     vao_x = prepare_vao_x_axis()
     vao_z = prepare_vao_z_axis()
     vao_line = prepare_vao_line()
+
+    vao_test = test_vao()
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -751,20 +898,40 @@ def main():
         glBindVertexArray(vao_z)
         glDrawArrays(GL_LINES, 0, 2)
 
+        # glUniform3f(color_loc, 0.0, 1.0, 1.0)
+        # glBindVertexArray(vao_test)
+        # glDrawArrays(GL_LINES, 0, 38)
+
 
         # if bvh is given as input
         if len(g_node_list) != 0:
             nodeList = g_node_list[-1]
             frame = g_frame_list[-1]
             frameTime = g_frameTime_list[-1]
+            vaoList = g_line_vao_list[-1]
 
             # rest pose
             if g_line:
-                for node in nodeList:
-                    node.setJointTransform()
-                nodeList[0].updateGlobal()
-                for node in nodeList:
-                    draw_node(vao_line, node, P*V, MVP_loc, color_loc)
+                # for node in nodeList:
+                #     node.setJointTransform(glm.translate(glm.vec3(node.offset[0], node.offset[1], node.offset[2])))
+                # nodeList[0].updateGlobal()
+                i = 0
+                while(i < len(vaoList)):
+                    draw_node(vaoList[i], nodeList[i], P*V, MVP_loc, color_loc)
+                    if len(nodeList[i].children) == 0:
+                        i += 1
+                        # vaoList is 19, but nodeList is 15
+                        # need to fix this part. which vao is affected by transformation?
+
+                for i in range(len(nodeList)):
+                    MVP = P * V * node.global_transform * node.shape_transform
+                    color = glm.vec3(0.0, 0.0, 0.5)
+
+                    glBindVertexArray(vao)
+                    glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+                    glUniform3f(color_loc, color.r, color.g, color.b)
+                    glDrawArrays(GL_LINES, 0, 2)
+                    # draw_node(vaoList[i], nodeList[i], P*V, MVP_loc, color_loc)
 
             while(g_animate):
                 for i in range(frame):
