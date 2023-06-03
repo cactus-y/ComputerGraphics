@@ -17,6 +17,7 @@ g_dist = glm.distance(g_cam_pos, g_target)
 # mode
 g_persp = True
 g_line = True
+g_animate = False
 
 # about vectors
 g_up_vector = glm.vec3(0.0, 1.0, 0.0)
@@ -36,7 +37,8 @@ g_zoom = 1.0
 
 # about bvh file io
 g_node_list = []
-g_obj_VAO_list = []
+g_line_vao_list = []
+g_box_vao_list = []
 
 g_frame_list = []
 g_frameTime_list = []
@@ -141,6 +143,7 @@ class Node:
         self.children = []
         self.joint_transform = glm.mat4()
         self.global_transform = glm.mat4()
+        self.shape_transform = glm.mat4()
         if parent is not None:
             parent.children.append(self)
     
@@ -183,6 +186,9 @@ class Node:
     
     def setChanList(self, chanList):
         self.chanList = chanList
+
+    # def setShapeTransform(self):
+        
     
 
 def parsing(inputStr):
@@ -240,22 +246,22 @@ def load_shaders(vertex_shader_source, fragment_shader_source):
 
 # Keyboard Input
 def key_callback(window, key, scancode, action, mods):
-    global g_persp, g_line
+    global g_persp, g_line, g_animate
     if key == GLFW_KEY_ESCAPE and action == GLFW_PRESS:
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     else:
         if action == GLFW_PRESS or action == GLFW_REPEAT:
             if key == GLFW_KEY_V:
-                if g_persp:
-                    g_persp = False
-                else:
-                    g_persp = True
+                g_persp = not g_persp
             if key == GLFW_KEY_1:
                 if not g_line:
                     g_line = True
             if key == GLFW_KEY_2:
                 if g_line:
                     g_line = False
+            if key == GLFW_KEY_SPACE:
+                g_animate = not g_animate
+                # reset stickman's node data into rest pose
         
 # mouse button clicked
 def mouse_button_callback(window, button, action, mod):
@@ -324,7 +330,10 @@ def scroll_callback(window, xoffset, yoffset):
 
 # drag file callback
 def drop_callback(window, path):
-    global g_node_list, g_frame_list, g_frameTime_list
+    global g_node_list, g_frame_list, g_frameTime_list, g_animate
+
+    if g_animate:
+        g_animate = False
 
     nodeList = []
     frame = 0
@@ -429,19 +438,19 @@ def drop_callback(window, path):
                     channel = node.channel
                     for idx in range(channel):
                         num = float(l[i + idx])
-                        if node.chanList[idx] == 'XPOSITION':
+                        if node.chanList[idx].upper() == 'XPOSITION':
                             pos[0] = num
-                        elif node.chanList[idx] == 'YPOSITION':
+                        elif node.chanList[idx].upper() == 'YPOSITION':
                             pos[1] = num
-                        elif node.chanList[idx] == 'ZPOSITION':
+                        elif node.chanList[idx].upper() == 'ZPOSITION':
                             pos[2] = num
-                        elif node.chanList[idx] == 'XROTATION':
+                        elif node.chanList[idx].upper() == 'XROTATION':
                             rot[0] = num
                             order.append(0)
-                        elif node.chanList[idx] == 'YROTATION':
+                        elif node.chanList[idx].upper() == 'YROTATION':
                             rot[1] = num
                             order.append(1)
-                        elif node.chanList[idx] == 'ZROTATION':
+                        elif node.chanList[idx].upper() == 'ZROTATION':
                             rot[2] = num
                             order.append(2)
                     i += channel
@@ -456,6 +465,8 @@ def drop_callback(window, path):
     g_node_list.append(nodeList)
     g_frame_list.append(frame)
     g_frameTime_list.append(frameTime)
+
+    # set initial shape transformation
 
     # print bvh file info
     print(f"bvh file name: {filename}")
@@ -598,7 +609,7 @@ def prepare_vao_z_axis():
     return VAO
 
 # 
-def prepare_stickman():
+def prepare_vao_line():
     # prepare vertex data (in main memory)
     arr = [ 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
             0.0, 0.1, 0.0, 0.0, 1.0, 0.0 ]
@@ -625,6 +636,18 @@ def prepare_stickman():
     glEnableVertexAttribArray(1)
 
     return VAO
+
+
+def draw_node(vao, node, VP, MVP_loc, color_loc):
+    MVP = VP * node.global_transform * node.shape_transform
+    color = glm.vec3(0.0, 0.0, 0.5)
+
+    glBindVertexArray(vao)
+    glUniformMatrix4fv(MVP_loc, 1, GL_FALSE, glm.value_ptr(MVP))
+    glUniform3f(color_loc, color.r, color.g, color.b)
+    glDrawArrays(GL_LINES, 0, 2)
+
+
 
 def main():
     global g_cam_pos, g_target, g_u_vec, g_v_vec, g_w_vec, g_elevation, g_azimuth, g_up_vector
@@ -668,6 +691,7 @@ def main():
     vao_grid = prepare_vao_grid()
     vao_x = prepare_vao_x_axis()
     vao_z = prepare_vao_z_axis()
+    vao_line = prepare_vao_line()
 
     # loop until the user closes the window
     while not glfwWindowShouldClose(window):
@@ -727,6 +751,32 @@ def main():
         glUniform3f(color_loc, 0.0, 1.0, 0.0)
         glBindVertexArray(vao_z)
         glDrawArrays(GL_LINES, 0, 2)
+
+
+        # if bvh is given as input
+        if len(g_node_list) != 0:
+            nodeList = g_node_list[-1]
+            frame = g_frame_list[-1]
+            frameTime = g_frameTime_list[-1]
+
+            # rest pose
+            if g_line:
+                for node in nodeList:
+                    node.setJointTransform()
+                nodeList[0].updateGlobal()
+                for node in nodeList:
+                    draw_node(vao_line, node, P*V, MVP_loc, color_loc)
+
+            while(g_animate):
+                for i in range(frame):
+                    if g_line:
+                        for node in nodeList:
+                            # update joint transformation and global transformation
+                            draw_node(vao_line, node, P*V, MVP_loc, color_loc)
+                            # use sleep function to set frame time
+                    
+                
+
 
         
 
